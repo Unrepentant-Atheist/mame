@@ -2,7 +2,7 @@
 // copyright-holders:Nicola Salmoria, Aaron Giles, Nathan Woods
 /*********************************************************************
 
-    miscmenu.c
+    ui/sliders.cpp
 
     Internal MAME menus for the user interface.
 
@@ -39,11 +39,14 @@ void ui_menu_sliders::handle()
 	if (menu_event != nullptr)
 	{
 		/* handle keys if there is a valid item selected */
-		if (menu_event->itemref != nullptr)
+		if (menu_event->itemref != nullptr && menu_event->type == ui_menu_item_type::SLIDER)
 		{
 			const slider_state *slider = (const slider_state *)menu_event->itemref;
-			INT32 curvalue = (*slider->update)(machine(), slider->arg, nullptr, SLIDER_NOCHANGE);
+			INT32 curvalue = (*slider->update)(machine(), slider->arg, slider->id, nullptr, SLIDER_NOCHANGE);
 			INT32 increment = 0;
+			bool alt_pressed = machine().input().code_pressed(KEYCODE_LALT) || machine().input().code_pressed(KEYCODE_RALT);
+			bool ctrl_pressed = machine().input().code_pressed(KEYCODE_LCONTROL) || machine().input().code_pressed(KEYCODE_RCONTROL);
+			bool shift_pressed = machine().input().code_pressed(KEYCODE_LSHIFT) || machine().input().code_pressed(KEYCODE_RSHIFT);
 
 			switch (menu_event->iptkey)
 			{
@@ -57,11 +60,13 @@ void ui_menu_sliders::handle()
 
 				/* decrease value */
 				case IPT_UI_LEFT:
-					if (machine().input().code_pressed(KEYCODE_LALT) || machine().input().code_pressed(KEYCODE_RALT))
+					if (alt_pressed && shift_pressed)
 						increment = -1;
-					else if (machine().input().code_pressed(KEYCODE_LSHIFT) || machine().input().code_pressed(KEYCODE_RSHIFT))
+					if (alt_pressed)
+						increment = -(curvalue - slider->minval);
+					else if (shift_pressed)
 						increment = (slider->incval > 10) ? -(slider->incval / 10) : -1;
-					else if (machine().input().code_pressed(KEYCODE_LCONTROL) || machine().input().code_pressed(KEYCODE_RCONTROL))
+					else if (ctrl_pressed)
 						increment = -slider->incval * 10;
 					else
 						increment = -slider->incval;
@@ -69,11 +74,13 @@ void ui_menu_sliders::handle()
 
 				/* increase value */
 				case IPT_UI_RIGHT:
-					if (machine().input().code_pressed(KEYCODE_LALT) || machine().input().code_pressed(KEYCODE_RALT))
+					if (alt_pressed && shift_pressed)
 						increment = 1;
-					else if (machine().input().code_pressed(KEYCODE_LSHIFT) || machine().input().code_pressed(KEYCODE_RSHIFT))
+					if (alt_pressed)
+						increment = slider->maxval - curvalue;
+					else if (shift_pressed)
 						increment = (slider->incval > 10) ? (slider->incval / 10) : 1;
-					else if (machine().input().code_pressed(KEYCODE_LCONTROL) || machine().input().code_pressed(KEYCODE_RCONTROL))
+					else if (ctrl_pressed)
 						increment = slider->incval * 10;
 					else
 						increment = slider->incval;
@@ -97,7 +104,7 @@ void ui_menu_sliders::handle()
 					newvalue = slider->maxval;
 
 				/* update the slider and recompute the menu */
-				(*slider->update)(machine(), slider->arg, nullptr, newvalue);
+				(*slider->update)(machine(), slider->arg, slider->id, nullptr, newvalue);
 				reset(UI_MENU_RESET_REMEMBER_REF);
 			}
 		}
@@ -108,20 +115,14 @@ void ui_menu_sliders::handle()
 			/* if we got here via up or page up, select the previous item */
 			if (menu_event->iptkey == IPT_UI_UP || menu_event->iptkey == IPT_UI_PAGE_UP)
 			{
-				do
-				{
-					selected = (selected + item.size() - 1) % item.size();
-				} while(((slider_state&)item[selected]).hidden);
+				selected = (selected + item.size() - 1) % item.size();
 				validate_selection(-1);
 			}
 
 			/* otherwise select the next item */
 			else if (menu_event->iptkey == IPT_UI_DOWN || menu_event->iptkey == IPT_UI_PAGE_DOWN)
 			{
-				do
-				{
-					selected = (selected + 1) % item.size();
-				} while(((slider_state&)item[selected]).hidden);
+				selected = (selected + 1) % item.size();
 				validate_selection(1);
 			}
 		}
@@ -139,27 +140,47 @@ void ui_menu_sliders::populate()
 	std::string tempstring;
 
 	/* add UI sliders */
-	for (const slider_state *curslider = machine().ui().get_slider_list(); curslider != nullptr; curslider = curslider->next)
+	std::vector<ui_menu_item> ui_sliders = machine().ui().get_slider_list();
+	for (ui_menu_item item : ui_sliders)
 	{
-		INT32 curval = (*curslider->update)(machine(), curslider->arg, &tempstring, SLIDER_NOCHANGE);
-		UINT32 flags = 0;
-		if (curval > curslider->minval)
-			flags |= MENU_FLAG_LEFT_ARROW;
-		if (curval < curslider->maxval)
-			flags |= MENU_FLAG_RIGHT_ARROW;
-		item_append(curslider->description, tempstring.c_str(), flags, (void *)curslider);
+        if (item.type == ui_menu_item_type::SLIDER)
+        {
+            slider_state* slider = reinterpret_cast<slider_state *>(item.ref);
+            INT32 curval = (*slider->update)(machine(), slider->arg, slider->id, &tempstring, SLIDER_NOCHANGE);
+            UINT32 flags = 0;
+            if (curval > slider->minval)
+                flags |= MENU_FLAG_LEFT_ARROW;
+            if (curval < slider->maxval)
+                flags |= MENU_FLAG_RIGHT_ARROW;
+            item_append(slider->description, tempstring.c_str(), flags, (void *)slider, ui_menu_item_type::SLIDER);
+        }
+        else
+        {
+            item_append(item);
+        }
 	}
 
-	/* add OSD sliders */
-	for (const slider_state *curslider = (slider_state*)machine().osd().get_slider_list(); curslider != nullptr; curslider = curslider->next)
+	item_append(ui_menu_item_type::SEPARATOR);
+
+	/* add OSD options */
+	std::vector<ui_menu_item> osd_sliders = machine().osd().get_slider_list();
+	for (ui_menu_item item : osd_sliders)
 	{
-		INT32 curval = (*curslider->update)(machine(), curslider->arg, &tempstring, SLIDER_NOCHANGE);
-		UINT32 flags = 0;
-		if (curval > curslider->minval)
-			flags |= MENU_FLAG_LEFT_ARROW;
-		if (curval < curslider->maxval)
-			flags |= MENU_FLAG_RIGHT_ARROW;
-		item_append(curslider->description, tempstring.c_str(), flags, (void *)curslider);
+        if (item.type == ui_menu_item_type::SLIDER)
+        {
+            slider_state* slider = reinterpret_cast<slider_state *>(item.ref);
+            INT32 curval = (*slider->update)(machine(), slider->arg, slider->id, &tempstring, SLIDER_NOCHANGE);
+            UINT32 flags = 0;
+            if (curval > slider->minval)
+                flags |= MENU_FLAG_LEFT_ARROW;
+            if (curval < slider->maxval)
+                flags |= MENU_FLAG_RIGHT_ARROW;
+            item_append(slider->description, tempstring.c_str(), flags, (void *)slider, ui_menu_item_type::SLIDER);
+        }
+        else
+        {
+            item_append(item);
+        }
 	}
 
 	custombottom = 2.0f * machine().ui().get_line_height() + 2.0f * UI_BOX_TB_BORDER;
@@ -183,7 +204,7 @@ void ui_menu_sliders::custom_render(void *selectedref, float top, float bottom, 
 		INT32 curval;
 
 		/* determine the current value and text */
-		curval = (*curslider->update)(machine(), curslider->arg, &tempstring, SLIDER_NOCHANGE);
+		curval = (*curslider->update)(machine(), curslider->arg, curslider->id, &tempstring, SLIDER_NOCHANGE);
 
 		/* compute the current and default percentages */
 		percentage = (float)(curval - curslider->minval) / (float)(curslider->maxval - curslider->minval);

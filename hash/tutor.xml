@@ -93,7 +93,7 @@ Battlefighter (Original) (Unreleased - Prototype Stage)
 		</part>
 	</software>
 
- 	<software name="4ninmja" cloneof="4ninmj">
+	<software name="4ninmja" cloneof="4ninmj">
 		<description>4-nin Mahjan (Jpn, set 2)</description>
 		<year>1984</year>
 		<publisher>Tomy</publisher>
@@ -101,11 +101,11 @@ Battlefighter (Original) (Unreleased - Prototype Stage)
 		<info name="serial" value="021E"/>
 		<part name="cart" interface="tutor_cart">
 			<dataarea name="rom" size="0x4000">
-		<rom name="MahJongg(JP).BIN" size="0x4000" crc="127241ec" sha1="8b9ea7fc592e673e93cfae1bfc458bfab4a52600" offset="0" />
+				<rom name="MahJongg(JP).BIN" size="0x4000" crc="127241ec" sha1="8b9ea7fc592e673e93cfae1bfc458bfab4a52600" offset="0" />
 			</dataarea>
 		</part>
-	</software> 
-    
+	</software>
+
 	<software name="baseball">
 		<description>Baseball [3D] (Jpn)</description>
 		<year>1984</year>
@@ -119,10 +119,10 @@ Battlefighter (Original) (Unreleased - Prototype Stage)
 		</part>
 	</software>
 
-  	<software name="batlfght">
+	<software name="batlfght">
 		<description>Battle Fighter [3D] (Jpn)</description>
 		<year>1985</year>
-    <publisher>Tomy</publisher>
+		<publisher>Tomy</publisher>
 		<info name="alt_title" value="バトルファイター"/>
 		<info name="serial" value="026E"/>
 		<part name="cart" interface="tutor_cart">
@@ -130,8 +130,8 @@ Battlefighter (Original) (Unreleased - Prototype Stage)
 				<rom name="Battlefighter(JP).BIN" size="0x8000" crc="e507480a" sha1="acb478e71f771854827217dd95472572759cb9d8" offset="0" />
 			</dataarea>
 		</part>
-	</software>  
-    
+	</software>
+
 	<software name="bombman">
 		<description>Bombman (Jpn)</description>
 		<year>1982</year>
@@ -412,10 +412,10 @@ Battlefighter (Original) (Unreleased - Prototype Stage)
 		</part>
 	</software>
 
- 	<software name="superbik">
+	<software name="superbik">
 		<description>Super Bike (Jpn)</description>
 		<year>1984</year>
-    <publisher>Tomy</publisher>
+		<publisher>Tomy</publisher>
 		<info name="alt_title" value="スーパーバイク"/>
 		<info name="serial" value="023E"/>
 		<part name="cart" interface="tutor_cart">
@@ -423,8 +423,8 @@ Battlefighter (Original) (Unreleased - Prototype Stage)
 				<rom name="SuperBike(JP).BIN" size="0x4000" crc="d66d2bc4" sha1="1941a4746b6ed0664dde0816966bc892d99691f6" offset="0" />
 			</dataarea>
 		</part>
-	</software> 
-  
+	</software>
+
 	<!-- Torpedo and Bermuda Triangle are confirmed as using the exact same ROM data -->
 	<software name="torpedo">
 	<!-- Stock No: 8101, Clone of Bermuda Triangle (Japanese 020E)-->

@@ -44,7 +44,10 @@
 // Base address of video buffer
 #define VIDEO_BUFFER_BASE       0x17000
 
-#define MAX_WORD_PER_ROW        600
+// For test "B" of alpha video to succeed this must be < 234
+// Basically "B" test is designed to intentionally prevent line buffer to be filled so that display is blanked
+// from 2nd row on. This in turn prevents "BAD" text to be visible on screen.
+#define MAX_WORD_PER_ROW        220
 
 #define VIDEO_CHAR_WIDTH        9
 #define VIDEO_CHAR_HEIGHT       15
@@ -412,10 +415,14 @@ void hp9845b_state::video_render_buff(unsigned line_in_row, bool buff_idx)
 				m_video_blanked = true;
 		}
 
-		if (m_video_blanked) {
-				// TODO: blank scanline
-		} else {
 		const rgb_t *palette = m_palette->palette()->entry_list_raw();
+
+		if (m_video_blanked) {
+                        // Blank scanline
+                        for (unsigned i = 0; i < (80 * 9); i++) {
+                                m_bitmap.pix32(m_video_scanline , i) = palette[ 0 ];
+                        }
+		} else {
 				bool cursor_line = line_in_row == 12;
 				bool ul_line = line_in_row == 14;
 				bool cursor_blink = BIT(m_video_frame , 3);
@@ -695,11 +702,11 @@ static MACHINE_CONFIG_START( hp9845b, hp9845b_state )
 		MCFG_HPHYBRID_PA_CHANGED(WRITE8(hp9845b_state , pa_w))
 
 	// video hardware
-	MCFG_SCREEN_ADD("screen", RASTER)
+	MCFG_SCREEN_ADD_MONOCHROME("screen", RASTER, rgb_t::green)
 	MCFG_SCREEN_UPDATE_DRIVER(hp9845b_state, screen_update)
 		MCFG_SCREEN_RAW_PARAMS(20849400 , 99 * 9 , 0 , 80 * 9 , 26 * 15 , 0 , 25 * 15)
 		MCFG_SCREEN_VBLANK_DRIVER(hp9845b_state, vblank_w)
-	MCFG_PALETTE_ADD_MONOCHROME_GREEN("palette")
+	MCFG_PALETTE_ADD_MONOCHROME("palette")
 
 	MCFG_TIMER_DRIVER_ADD_SCANLINE("scantimer", hp9845b_state, scanline_timer, "screen", 0, 1)
 

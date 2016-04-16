@@ -25,22 +25,20 @@ includedirs {
 	MAME_DIR .. "src/devices", -- till deps are fixed
 	MAME_DIR .. "src/lib",
 	MAME_DIR .. "src/lib/util",
+	MAME_DIR .. "3rdparty/rapidjson/include",
 	MAME_DIR .. "3rdparty",
 	GEN_DIR  .. "emu",
 	GEN_DIR  .. "emu/layout",
 }
-if _OPTIONS["with-bundled-expat"] then
-	includedirs {
-		MAME_DIR .. "3rdparty/expat/lib",
-	}
-end
-if _OPTIONS["with-bundled-lua"] then
-	includedirs {
-		MAME_DIR .. "3rdparty/lua/src",
-	}
-end
 
-if (_OPTIONS["targetos"] == "windows") then
+includedirs {
+	ext_includedir("expat"),
+	ext_includedir("lua"),
+	ext_includedir("zlib"),
+	ext_includedir("flac"),
+}
+
+if (_OPTIONS["targetos"] == "windows" and _OPTIONS["osd"] ~= "osdmini") then
 	defines {
 		"UI_WINDOWS",
 	}
@@ -133,6 +131,8 @@ files {
 	MAME_DIR .. "src/emu/emualloc.h",
 	MAME_DIR .. "src/emu/emucore.cpp",
 	MAME_DIR .. "src/emu/emucore.h",
+	MAME_DIR .. "src/emu/emumem.cpp",
+	MAME_DIR .. "src/emu/emumem.h",	
 	MAME_DIR .. "src/emu/emuopts.cpp",
 	MAME_DIR .. "src/emu/emuopts.h",
 	MAME_DIR .. "src/emu/emupal.cpp",
@@ -158,17 +158,16 @@ files {
 	MAME_DIR .. "src/emu/mame.h",
 	MAME_DIR .. "src/emu/machine.cpp",
 	MAME_DIR .. "src/emu/machine.h",
-	MAME_DIR .. "src/emu/machine.ipp",
 	MAME_DIR .. "src/emu/mconfig.cpp",
 	MAME_DIR .. "src/emu/mconfig.h",
 	MAME_DIR .. "src/emu/memarray.cpp",
 	MAME_DIR .. "src/emu/memarray.h",
-	MAME_DIR .. "src/emu/memory.cpp",
-	MAME_DIR .. "src/emu/memory.h",
 	MAME_DIR .. "src/emu/network.cpp",
 	MAME_DIR .. "src/emu/network.h",
 	MAME_DIR .. "src/emu/parameters.cpp",
 	MAME_DIR .. "src/emu/parameters.h",
+	MAME_DIR .. "src/emu/pluginopts.cpp",
+	MAME_DIR .. "src/emu/pluginopts.h",
 	MAME_DIR .. "src/emu/output.cpp",
 	MAME_DIR .. "src/emu/output.h",
 	MAME_DIR .. "src/emu/render.cpp",
@@ -206,6 +205,8 @@ files {
 	MAME_DIR .. "src/emu/ui/devctrl.h",
 	MAME_DIR .. "src/emu/ui/menu.cpp",
 	MAME_DIR .. "src/emu/ui/menu.h",
+	MAME_DIR .. "src/emu/ui/submenu.cpp",
+	MAME_DIR .. "src/emu/ui/submenu.h",
 	MAME_DIR .. "src/emu/ui/mainmenu.cpp",
 	MAME_DIR .. "src/emu/ui/mainmenu.h",
 	MAME_DIR .. "src/emu/ui/miscmenu.cpp",
@@ -214,6 +215,8 @@ files {
 	MAME_DIR .. "src/emu/ui/barcode.h",
 	MAME_DIR .. "src/emu/ui/cheatopt.cpp",
 	MAME_DIR .. "src/emu/ui/cheatopt.h",
+	MAME_DIR .. "src/emu/ui/pluginopt.cpp",
+	MAME_DIR .. "src/emu/ui/pluginopt.h",
 	MAME_DIR .. "src/emu/ui/devopt.cpp",
 	MAME_DIR .. "src/emu/ui/devopt.h",
 	MAME_DIR .. "src/emu/ui/filemngr.cpp",
@@ -244,8 +247,6 @@ files {
 	MAME_DIR .. "src/emu/ui/auditmenu.h",
 	MAME_DIR .. "src/emu/ui/cmddata.h",
 	MAME_DIR .. "src/emu/ui/cmdrender.h",
-	MAME_DIR .. "src/emu/ui/ctrlmenu.cpp",
-	MAME_DIR .. "src/emu/ui/ctrlmenu.h",
 	MAME_DIR .. "src/emu/ui/custmenu.cpp",
 	MAME_DIR .. "src/emu/ui/custmenu.h",
 	MAME_DIR .. "src/emu/ui/custui.cpp",
@@ -257,8 +258,6 @@ files {
 	MAME_DIR .. "src/emu/ui/defimg.h",
 	MAME_DIR .. "src/emu/ui/dirmenu.cpp",
 	MAME_DIR .. "src/emu/ui/dirmenu.h",
-	MAME_DIR .. "src/emu/ui/dsplmenu.cpp",
-	MAME_DIR .. "src/emu/ui/dsplmenu.h",
 	MAME_DIR .. "src/emu/ui/icorender.h",
 	MAME_DIR .. "src/emu/ui/inifile.cpp",
 	MAME_DIR .. "src/emu/ui/inifile.h",
@@ -281,7 +280,7 @@ files {
 	MAME_DIR .. "src/emu/ui/starimg.h",
 	MAME_DIR .. "src/emu/ui/toolbar.h",
 	MAME_DIR .. "src/emu/ui/utils.cpp",
-	MAME_DIR .. "src/emu/ui/utils.h",	
+	MAME_DIR .. "src/emu/ui/utils.h",
 	MAME_DIR .. "src/emu/validity.cpp",
 	MAME_DIR .. "src/emu/validity.h",
 	MAME_DIR .. "src/emu/video.cpp",
@@ -406,6 +405,7 @@ dependency {
 	{ MAME_DIR .. "src/emu/rendlay.cpp", GEN_DIR .. "emu/layout/vertical.lh" },
 	{ MAME_DIR .. "src/emu/rendlay.cpp", GEN_DIR .. "emu/layout/lcd.lh" },
 	{ MAME_DIR .. "src/emu/rendlay.cpp", GEN_DIR .. "emu/layout/lcd_rot.lh" },
+	{ MAME_DIR .. "src/emu/rendlay.cpp", GEN_DIR .. "emu/layout/svg.lh" },
 	{ MAME_DIR .. "src/emu/rendlay.cpp", GEN_DIR .. "emu/layout/noscreens.lh" },
 
 	{ MAME_DIR .. "src/emu/video.cpp",   GEN_DIR .. "emu/layout/snap.lh" },
@@ -414,6 +414,9 @@ dependency {
 
 custombuildtask {
 	{ MAME_DIR .. "scripts/font/NotoSans-Bold.bdc", GEN_DIR .. "emu/uismall.fh",     {  MAME_DIR .. "scripts/build/file2str.py" }, {"@echo Converting NotoSans-Bold.bdc...", PYTHON .. " $(1) $(<) $(@) font_uismall UINT8" }},
+}
+
+custombuildtask {
 	{ MAME_DIR .. "src/emu/ui/uicmd14.png"        , GEN_DIR .. "emu/ui/uicmd14.fh",  {  MAME_DIR.. "scripts/build/png2bdc.py",  MAME_DIR .. "scripts/build/file2str.py" }, {"@echo Converting uicmd14.png...", PYTHON .. " $(1) $(<) temp_cmd.bdc", PYTHON .. " $(2) temp_cmd.bdc $(@) font_uicmd14 UINT8" }},
 
 	layoutbuildtask("emu/layout", "dualhovu"),
@@ -425,6 +428,7 @@ custombuildtask {
 	layoutbuildtask("emu/layout", "vertical"),
 	layoutbuildtask("emu/layout", "lcd"),
 	layoutbuildtask("emu/layout", "lcd_rot"),
+	layoutbuildtask("emu/layout", "svg"),
 	layoutbuildtask("emu/layout", "noscreens"),
 	layoutbuildtask("emu/layout", "snap"),
 }

@@ -1,5 +1,5 @@
 // license:BSD-3-Clause
-// copyright-holders:Dankan1890
+// copyright-holders:Maurizio Petrarota
 /***************************************************************************
 
     ui/selgame.h
@@ -41,6 +41,7 @@ private:
 	{
 		CONF_OPTS = 1,
 		CONF_MACHINE,
+		CONF_PLUGINS,
 	};
 
 	enum { VISIBLE_GAMES_IN_SEARCH = 200 };
@@ -52,7 +53,6 @@ private:
 	std::vector<const game_driver *> m_availsortedlist;
 	std::vector<const game_driver *> m_unavailsortedlist;
 	std::vector<const game_driver *> m_displaylist;
-	std::vector<const game_driver *> m_tmp;
 
 	const game_driver *m_searchlist[VISIBLE_GAMES_IN_SEARCH + 1];
 
@@ -60,7 +60,7 @@ private:
 	void build_custom();
 	void build_category();
 	void build_available_list();
-	void build_list(std::vector<const game_driver *> &vec, const char *filter_text = nullptr, int filter = 0, bool bioscheck = false);
+	void build_list(const char *filter_text = nullptr, int filter = 0, bool bioscheck = false, std::vector<const game_driver *> vec = {});
 
 	bool isfavorite();
 	void populate_search();

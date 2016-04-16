@@ -10,10 +10,11 @@
 
 #pragma once
 
-#ifndef __OSDOBJ_COMMON_H__
-#define __OSDOBJ_COMMON__
+#ifndef MAME_OSD_LIB_OSDOBJ_COMMON_H
+#define MAME_OSD_LIB_OSDOBJ_COMMON_H
 
 #include "osdepend.h"
+#include "watchdog.h"
 #include "modules/osdmodule.h"
 #include "modules/font/font_module.h"
 #include "modules/input/input_module.h"
@@ -21,7 +22,10 @@
 #include "modules/debugger/debug_module.h"
 #include "modules/netdev/netdev_module.h"
 #include "modules/midi/midi_module.h"
+#include "modules/output/output_module.h"
 #include "cliopts.h"
+
+class ui_menu_item;
 
 //============================================================
 //  Defines
@@ -37,7 +41,6 @@
 #define OSDOPTION_DEBUGGER_FONT_SIZE    "debugger_font_size"
 #define OSDOPTION_WATCHDOG              "watchdog"
 
-#define OSDOPTION_MULTITHREADING        "multithreading"
 #define OSDOPTION_NUMPROCESSORS         "numprocessors"
 #define OSDOPTION_BENCH                 "bench"
 
@@ -45,8 +48,6 @@
 #define OSDOPTION_NUMSCREENS            "numscreens"
 #define OSDOPTION_WINDOW                "window"
 #define OSDOPTION_MAXIMIZE              "maximize"
-#define OSDOPTION_KEEPASPECT            "keepaspect"
-#define OSDOPTION_UNEVENSTRETCH         "unevenstretch"
 #define OSDOPTION_WAITVSYNC             "waitvsync"
 #define OSDOPTION_SYNCREFRESH           "syncrefresh"
 
@@ -78,7 +79,11 @@
 #define OSDOPTVAL_AUTO                  "auto"
 #define OSDOPTVAL_NONE                  "none"
 
-
+#define OSDOPTION_BGFX_PATH             "bgfx_path"
+#define OSDOPTION_BGFX_BACKEND          "bgfx_backend"
+#define OSDOPTION_BGFX_DEBUG            "bgfx_debug"
+#define OSDOPTION_BGFX_SCREEN_CHAINS    "bgfx_screen_chains"
+#define OSDOPTION_BGFX_SHADOW_MASK      "bgfx_shadow_mask"
 
 //============================================================
 //  TYPE DEFINITIONS
@@ -100,7 +105,6 @@ public:
 	int watchdog() const { return int_value(OSDOPTION_WATCHDOG); }
 
 	// performance options
-	bool multithreading() const { return bool_value(OSDOPTION_MULTITHREADING); }
 	const char *numprocessors() const { return value(OSDOPTION_NUMPROCESSORS); }
 	int bench() const { return int_value(OSDOPTION_BENCH); }
 
@@ -109,8 +113,6 @@ public:
 	int numscreens() const { return int_value(OSDOPTION_NUMSCREENS); }
 	bool window() const { return bool_value(OSDOPTION_WINDOW); }
 	bool maximize() const { return bool_value(OSDOPTION_MAXIMIZE); }
-	bool keep_aspect() const { return bool_value(OSDOPTION_KEEPASPECT); }
-	bool uneven_stretch() const { return bool_value(OSDOPTION_UNEVENSTRETCH); }
 	bool wait_vsync() const { return bool_value(OSDOPTION_WAITVSYNC); }
 	bool sync_refresh() const { return bool_value(OSDOPTION_SYNCREFRESH); }
 
@@ -149,6 +151,13 @@ public:
 	const char *audio_output() const { return value(OSDOPTION_AUDIO_OUTPUT); }
 	const char *audio_effect(int index) const { return value(string_format("%s%d", OSDOPTION_AUDIO_EFFECT, index).c_str()); }
 
+	// BGFX specific options
+	const char *bgfx_path() const { return value(OSDOPTION_BGFX_PATH); }
+	const char *bgfx_backend() const { return value(OSDOPTION_BGFX_BACKEND); }
+	const bool bgfx_debug() const { return bool_value(OSDOPTION_BGFX_DEBUG); }
+	const char *bgfx_screen_chains() const { return value(OSDOPTION_BGFX_SCREEN_CHAINS); }
+	const char *bgfx_shadow_mask() const { return value(OSDOPTION_BGFX_SHADOW_MASK); }
+
 private:
 	static const options_entry s_option_entries[];
 };
@@ -182,18 +191,14 @@ public:
 	// input overridables
 	virtual void customize_input_type_list(simple_list<input_type_entry> &typelist) override;
 
-	// font overridables
-	virtual osd_font *font_open(const char *name, int &height);
-	virtual void font_close(osd_font *font);
-	virtual bool font_get_bitmap(osd_font *font, unicode_char chnum, bitmap_argb32 &bitmap, INT32 &width, INT32 &xoffs, INT32 &yoffs);
-
 	// video overridables
-	virtual slider_state *get_slider_list() override;
+	virtual std::vector<ui_menu_item> get_slider_list() override;
 
 	// command option overrides
 	virtual bool execute_command(const char *command) override;
 
-	virtual osd_font *font_alloc() override { return m_font_module->font_alloc(); }
+	virtual osd_font::ptr font_alloc() override { return m_font_module->font_alloc(); }
+	virtual bool get_font_families(std::string const &font_path, std::vector<std::pair<std::string, std::string> > &result) override { return m_font_module->get_font_families(font_path, result); }
 
 	virtual osd_midi_device *create_midi_device() override { return m_midi->create_midi_device(); }
 
@@ -212,13 +217,11 @@ public:
 	virtual bool window_init();
 
 	virtual void input_resume();
-	virtual bool output_init();
 
 	virtual void exit_subsystems();
 	virtual void video_exit();
 	virtual void window_exit();
 	virtual void input_exit();
-	virtual void output_exit();
 
 	virtual void osd_exit();
 
@@ -231,9 +234,13 @@ public:
 	bool verbose() const { return m_print_verbose; }
 	void set_verbose(bool print_verbose) { m_print_verbose = print_verbose; }
 
+	void notify(const char *outname, INT32 value) { m_output->notify(outname, value); }
 protected:
 	virtual bool input_init();
 	virtual void input_pause();
+
+	virtual void build_slider_list() { }
+	virtual void update_slider_list() { }
 
 private:
 	// internal state
@@ -267,13 +274,17 @@ private:
 	}
 
 protected:
-	sound_module* m_sound;
-	debug_module* m_debugger;
-	midi_module* m_midi;
-    input_module* m_keyboard_input;
-    input_module* m_mouse_input;
-    input_module* m_lightgun_input;
-    input_module* m_joystick_input;
+	sound_module*  m_sound;
+	debug_module*  m_debugger;
+	midi_module*   m_midi;
+	input_module*  m_keyboard_input;
+	input_module*  m_mouse_input;
+	input_module*  m_lightgun_input;
+	input_module*  m_joystick_input;
+	output_module* m_output;
+	std::unique_ptr<osd_watchdog> m_watchdog;
+	std::vector<ui_menu_item> m_sliders;
+
 private:
 	std::vector<const char *> m_video_names;
 };
@@ -286,4 +297,4 @@ debug_module *osd_debugger_creator()
 	return global_alloc(_DeviceClass());
 }
 
-#endif  /* __OSDOBJ_COMMON_H__ */
+#endif  // MAME_OSD_LIB_OSDOBJ_COMMON_H

@@ -15,7 +15,7 @@ dofile("modules.lua")
 function maintargetosdoptions(_target,_subtarget)
 	osdmodulestargetconf()
 
-	configuration { "mingw*-gcc" }
+	configuration { "mingw*" }
 		linkoptions {
 			"-municode",
 		}
@@ -144,6 +144,7 @@ project ("osd_" .. _OPTIONS["osd"])
 		MAME_DIR .. "src/osd",
 		MAME_DIR .. "src/lib",
 		MAME_DIR .. "src/lib/util",
+		MAME_DIR .. "src/osd/modules/file",
 		MAME_DIR .. "src/osd/modules/render",
 		MAME_DIR .. "3rdparty",
 	}
@@ -164,8 +165,6 @@ project ("osd_" .. _OPTIONS["osd"])
 		MAME_DIR .. "src/osd/modules/render/drawgdi.h",
 		MAME_DIR .. "src/osd/modules/render/drawnone.cpp",
 		MAME_DIR .. "src/osd/modules/render/drawnone.h",
-		MAME_DIR .. "src/osd/windows/output.cpp",
-		MAME_DIR .. "src/osd/windows/output.h",
 		MAME_DIR .. "src/osd/windows/video.cpp",
 		MAME_DIR .. "src/osd/windows/video.h",
 		MAME_DIR .. "src/osd/windows/window.cpp",
@@ -217,8 +216,10 @@ project ("ocore_" .. _OPTIONS["osd"])
 	dofile("windows_cfg.lua")
 
 	includedirs {
+		MAME_DIR .. "3rdparty",
 		MAME_DIR .. "src/emu",
 		MAME_DIR .. "src/osd",
+		MAME_DIR .. "src/osd/modules/file",
 		MAME_DIR .. "src/lib",
 		MAME_DIR .. "src/lib/util",
 	}
@@ -242,52 +243,19 @@ project ("ocore_" .. _OPTIONS["osd"])
 		MAME_DIR .. "src/osd/osdcore.h",
 		MAME_DIR .. "src/osd/strconv.cpp",
 		MAME_DIR .. "src/osd/strconv.h",
+		MAME_DIR .. "src/osd/osdsync.cpp",
+		MAME_DIR .. "src/osd/osdsync.h",
 		MAME_DIR .. "src/osd/windows/main.cpp",
 		MAME_DIR .. "src/osd/windows/windir.cpp",
-		MAME_DIR .. "src/osd/windows/winfile.cpp",
-		MAME_DIR .. "src/osd/modules/sync/osdsync.cpp",
-		MAME_DIR .. "src/osd/modules/sync/osdsync.h",
 		MAME_DIR .. "src/osd/windows/winutf8.cpp",
 		MAME_DIR .. "src/osd/windows/winutf8.h",
 		MAME_DIR .. "src/osd/windows/winutil.cpp",
 		MAME_DIR .. "src/osd/windows/winutil.h",
-		MAME_DIR .. "src/osd/windows/winfile.h",
-		MAME_DIR .. "src/osd/windows/winclip.cpp",
-		MAME_DIR .. "src/osd/windows/winsocket.cpp",
-		MAME_DIR .. "src/osd/windows/winptty.cpp",
 		MAME_DIR .. "src/osd/modules/osdmodule.cpp",
 		MAME_DIR .. "src/osd/modules/osdmodule.h",
+		MAME_DIR .. "src/osd/modules/file/winfile.cpp",
+		MAME_DIR .. "src/osd/modules/file/winfile.h",
+		MAME_DIR .. "src/osd/modules/file/winptty.cpp",
+		MAME_DIR .. "src/osd/modules/file/winsocket.cpp",
 		MAME_DIR .. "src/osd/modules/lib/osdlib_win32.cpp",
-		MAME_DIR .. "src/osd/modules/sync/work_osd.cpp",
 	}
-
-
---------------------------------------------------
--- ledutil
---------------------------------------------------
-
-if _OPTIONS["with-tools"] then
-	project("ledutil")
-		uuid ("061293ca-7290-44ac-b2b5-5913ae8dc9c0")
-		kind "ConsoleApp"
-
-		flags {
-			"Symbols", -- always include minimum symbols for executables 	
-		}
-
-		if _OPTIONS["SEPARATE_BIN"]~="1" then 
-			targetdir(MAME_DIR)
-		end
-
-		links {
-			"ocore_" .. _OPTIONS["osd"],
-		}
-
-		includedirs {
-			MAME_DIR .. "src/osd",
-		}
-		
-		files {
-			MAME_DIR .. "src/osd/windows/ledutil.cpp",
-		}
-end

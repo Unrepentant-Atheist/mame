@@ -145,8 +145,8 @@ class netlist_tool_t : public netlist::netlist_t
 {
 public:
 
-	netlist_tool_t()
-	: netlist::netlist_t(), m_opts(NULL), m_setup(NULL)
+	netlist_tool_t(const pstring &aname)
+	: netlist::netlist_t(aname), m_opts(NULL), m_setup(NULL)
 	{
 	}
 
@@ -159,7 +159,6 @@ public:
 	void init()
 	{
 		m_setup = palloc(netlist::setup_t(this));
-		this->init_object(*this, "netlist");
 		m_setup->init();
 	}
 
@@ -181,7 +180,7 @@ public:
 	void log_setup()
 	{
 		log().debug("Creating dynamic logs ...\n");
-		pstring_list_t ll(m_opts ? m_opts->opt_logs() : "" , ":");
+		pstring_vector_t ll(m_opts ? m_opts->opt_logs() : "" , ":");
 		for (unsigned i=0; i < ll.size(); i++)
 		{
 			pstring name = "log_" + ll[i];
@@ -260,9 +259,9 @@ struct input_t
 
 };
 
-plist_t<input_t> *read_input(netlist::netlist_t *netlist, pstring fname)
+pvector_t<input_t> *read_input(netlist::netlist_t *netlist, pstring fname)
 {
-	plist_t<input_t> *ret = palloc(plist_t<input_t>());
+	pvector_t<input_t> *ret = palloc(pvector_t<input_t>());
 	if (fname != "")
 	{
 		pifilestream f(fname);
@@ -272,7 +271,7 @@ plist_t<input_t> *read_input(netlist::netlist_t *netlist, pstring fname)
 			if (l != "")
 			{
 				input_t inp(netlist, l);
-				ret->add(inp);
+				ret->push_back(inp);
 			}
 		}
 	}
@@ -281,7 +280,7 @@ plist_t<input_t> *read_input(netlist::netlist_t *netlist, pstring fname)
 
 static void run(tool_options_t &opts)
 {
-	netlist_tool_t nt;
+	netlist_tool_t nt("netlist");
 	osd_ticks_t t = osd_ticks();
 
 	nt.m_opts = &opts;
@@ -294,7 +293,7 @@ static void run(tool_options_t &opts)
 
 	nt.read_netlist(opts.opt_file(), opts.opt_name());
 
-	plist_t<input_t> *inps = read_input(&nt, opts.opt_inp());
+	pvector_t<input_t> *inps = read_input(&nt, opts.opt_inp());
 
 	double ttr = opts.opt_ttr();
 
@@ -326,7 +325,7 @@ static void run(tool_options_t &opts)
 
 static void listdevices()
 {
-	netlist_tool_t nt;
+	netlist_tool_t nt("netlist");
 	nt.init();
 	const netlist::factory_list_t &list = nt.setup().factory();
 

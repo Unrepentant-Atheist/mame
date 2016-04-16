@@ -101,7 +101,7 @@ CPUS["SM8500"] = true
 CPUS["MINX"] = true
 CPUS["SSEM"] = true
 CPUS["AVR8"] = true
-CPUS["TMS0980"] = true
+CPUS["TMS1000"] = true
 CPUS["I4004"] = true
 CPUS["SUPERFX"] = true
 CPUS["Z8"] = true
@@ -251,6 +251,7 @@ SOUNDS["TMS5110A"] = true
 SOUNDS["LMC1992"] = true
 SOUNDS["AWACS"] = true
 --SOUNDS["YMZ770"] = true
+--SOUNDS["MPEG_AUDIO"] = true
 SOUNDS["T6721A"] = true
 SOUNDS["MOS7360"] = true
 SOUNDS["ESQPUMP"] = true
@@ -522,6 +523,7 @@ MACHINES["SMPC"] = true
 MACHINES["STVCD"] = true
 MACHINES["TC0091LVC"] = true
 MACHINES["TIMEKPR"] = true
+MACHINES["TMC0430"] = true
 MACHINES["TMP68301"] = true
 MACHINES["TMS5501"] = true
 MACHINES["TMS6100"] = true
@@ -571,6 +573,7 @@ MACHINES["DIABLO_HD"] = true
 MACHINES["TMS1024"] = true
 MACHINES["NSC810"] = true
 MACHINES["VT82C496"] = true
+MACHINES["GENPC"] = true
 
 --------------------------------------------------
 -- specify available bus cores
@@ -615,6 +618,7 @@ BUSES["GENERIC"] = true
 BUSES["IEEE488"] = true
 BUSES["IMI7000"] = true
 BUSES["INTV"] = true
+BUSES["INTV_CTRL"] = true
 BUSES["IQ151"] = true
 BUSES["ISA"] = true
 BUSES["ISBX"] = true
@@ -627,6 +631,7 @@ BUSES["MEGADRIVE"] = true
 BUSES["MSX_SLOT"] = true
 BUSES["NASBUS"] = true
 BUSES["NEOGEO"] = true
+BUSES["NEOGEO_CTRL"] = true
 BUSES["NES"] = true
 BUSES["NES_CTRL"] = true
 BUSES["NEWBRAIN"] = true
@@ -651,6 +656,8 @@ BUSES["SMS_EXP"] = true
 BUSES["SNES"] = true
 BUSES["SNES_CTRL"] = true
 BUSES["SPC1000"] = true
+BUSES["SVI_EXPANDER"] = true
+BUSES["SVI_SLOT"] = true
 BUSES["TI99PEB"] = true
 BUSES["TI99X"] = true
 BUSES["TIKI100"] = true
@@ -1962,6 +1969,7 @@ createMESSProjects(_target, _subtarget, "mb")
 files {
 	MAME_DIR .. "src/mame/drivers/mbdtower.cpp",
 	MAME_DIR .. "src/mame/drivers/microvsn.cpp",
+	MAME_DIR .. "src/mame/drivers/phantom.cpp",
 }
 
 createMESSProjects(_target, _subtarget, "mchester")
@@ -2170,10 +2178,10 @@ createMESSProjects(_target, _subtarget, "novag")
 files {
 	MAME_DIR .. "src/mame/drivers/mk1.cpp",
 	MAME_DIR .. "src/mame/drivers/mk2.cpp",
+	MAME_DIR .. "src/mame/drivers/novag6502.cpp",
 	MAME_DIR .. "src/mame/drivers/ssystem3.cpp",
 	MAME_DIR .. "src/mame/includes/ssystem3.h",
 	MAME_DIR .. "src/mame/video/ssystem3.cpp",
-	MAME_DIR .. "src/mame/drivers/supercon.cpp",
 }
 
 createMESSProjects(_target, _subtarget, "olivetti")
@@ -2255,8 +2263,6 @@ files {
 	MAME_DIR .. "src/mame/drivers/asst128.cpp",
 	MAME_DIR .. "src/mame/drivers/europc.cpp",
 	MAME_DIR .. "src/mame/drivers/genpc.cpp",
-	MAME_DIR .. "src/mame/includes/genpc.h",
-	MAME_DIR .. "src/mame/machine/genpc.cpp",
 	MAME_DIR .. "src/mame/drivers/ibmpc.cpp",
 	MAME_DIR .. "src/mame/drivers/ibmpcjr.cpp",
 	MAME_DIR .. "src/mame/drivers/pc.cpp",
@@ -2879,7 +2885,7 @@ files {
 
 createMESSProjects(_target, _subtarget, "usp")
 files {
-    MAME_DIR .. "src/mame/drivers/patinho_feio.cpp",
+	MAME_DIR .. "src/mame/drivers/patinho_feio.cpp",
 }
 
 createMESSProjects(_target, _subtarget, "veb")
@@ -2992,9 +2998,6 @@ files {
 	MAME_DIR .. "src/mame/includes/mc1502.h",
 	MAME_DIR .. "src/mame/drivers/poisk1.cpp",
 	MAME_DIR .. "src/mame/machine/kb_poisk1.h",
-	MAME_DIR .. "src/mame/includes/poisk1.h",
-	MAME_DIR .. "src/mame/video/poisk1.cpp",
-	MAME_DIR .. "src/mame/video/poisk1.h",
 }
 
 createMESSProjects(_target, _subtarget, "yamaha")
@@ -3112,8 +3115,8 @@ files {
 	MAME_DIR .. "src/mame/drivers/lft.cpp",
 	MAME_DIR .. "src/mame/drivers/lg-dvd.cpp",
 	MAME_DIR .. "src/mame/drivers/lola8a.cpp",
-    MAME_DIR .. "src/mame/drivers/m79152pc.cpp",
-    MAME_DIR .. "src/mame/drivers/marywu.cpp",
+	MAME_DIR .. "src/mame/drivers/m79152pc.cpp",
+	MAME_DIR .. "src/mame/drivers/marywu.cpp",
 	MAME_DIR .. "src/mame/drivers/mccpm.cpp",
 	MAME_DIR .. "src/mame/drivers/mes.cpp",
 	MAME_DIR .. "src/mame/drivers/mice.cpp",
@@ -3166,6 +3169,7 @@ files {
 	MAME_DIR .. "src/mame/drivers/squale.cpp",
 	MAME_DIR .. "src/mame/drivers/swtpc.cpp",
 	MAME_DIR .. "src/mame/drivers/swyft.cpp",
+	MAME_DIR .. "src/mame/drivers/symbolics.cpp",
 	MAME_DIR .. "src/mame/drivers/sys2900.cpp",
 	MAME_DIR .. "src/mame/drivers/systec.cpp",
 	MAME_DIR .. "src/mame/drivers/tavernie.cpp",

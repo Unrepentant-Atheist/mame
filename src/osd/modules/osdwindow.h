@@ -11,10 +11,20 @@
 
 #include "emu.h"
 #include "ui/ui.h"
+#include "ui/menu.h"
+#include "osdhelper.h"
+
+// standard windows headers
+#ifdef OSD_WINDOWS
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <windowsx.h>
+#include <mmsystem.h>
+#endif
 
 #ifdef OSD_SDL
-// standard SDL headers
-#include "sdlinc.h"
+// forward declaration
+struct SDL_Window;
 #endif
 
 //============================================================
@@ -39,57 +49,6 @@ enum
 	VIDEO_MODE_COUNT
 };
 
-class osd_dim
-{
-public:
-	osd_dim(const int &w, const int &h)
-	: m_w(w), m_h(h)
-	{
-	}
-	int width() const { return m_w; }
-	int height() const { return m_h; }
-
-	bool operator!=(const osd_dim &other) { return (m_w != other.width()) || (m_h != other.height()); }
-	bool operator==(const osd_dim &other) { return (m_w == other.width()) && (m_h == other.height()); }
-private:
-	int m_w;
-	int m_h;
-};
-
-class osd_rect
-{
-public:
-	osd_rect()
-	: m_x(0), m_y(0), m_d(0,0)
-	{
-	}
-	osd_rect(const int x, const int y, const int &w, const int &h)
-	: m_x(x), m_y(y), m_d(w,h)
-	{
-	}
-	osd_rect(const int x, const int y, const osd_dim &d)
-	: m_x(x), m_y(y), m_d(d)
-	{
-	}
-	int top() const { return m_y; }
-	int left() const { return m_x; }
-	int width() const { return m_d.width(); }
-	int height() const { return m_d.height(); }
-
-	osd_dim dim() const { return m_d; }
-
-	int bottom() const { return m_y + m_d.height(); }
-	int right() const { return m_x + m_d.width(); }
-
-	osd_rect move_by(int dx, int dy) const { return osd_rect(m_x + dx, m_y + dy, m_d); }
-	osd_rect resize(int w, int h) const { return osd_rect(m_x, m_y, w, h); }
-
-private:
-	int m_x;
-	int m_y;
-	osd_dim m_d;
-};
-
 class osd_monitor_info
 {
 public:
@@ -110,8 +69,10 @@ public:
 
 	const char *devicename() { return m_name[0] ? m_name : "UNKNOWN"; }
 
-	float aspect();
+	float aspect() { return m_aspect; }
+	float pixel_aspect() { return m_aspect / ((float)m_pos_size.width() / (float)m_pos_size.height()); }
 
+	void update_resolution(const int new_width, const int new_height) { m_pos_size.resize(new_width, new_height); }
 	void set_aspect(const float a) { m_aspect = a; }
 	bool is_primary() { return m_is_primary; }
 
@@ -166,16 +127,24 @@ public:
 
 	int prescale() const { return m_prescale; };
 
-	float aspect() const { return monitor()->aspect(); }
+	float pixel_aspect() const { return monitor()->pixel_aspect(); }
+
+	bool swap_xy()
+	{
+		bool orientation_swap_xy =
+			(machine().system().flags & ORIENTATION_SWAP_XY) == ORIENTATION_SWAP_XY;
+		bool rotation_swap_xy =
+			(target()->orientation() & ORIENTATION_SWAP_XY) == ORIENTATION_SWAP_XY;
+		return orientation_swap_xy ^ rotation_swap_xy;
+	};
 
 	virtual osd_dim get_size() = 0;
 
-#ifdef OSD_SDL
-	virtual osd_dim blit_surface_size() = 0;
 	virtual osd_monitor_info *monitor() const = 0;
+
+#ifdef OSD_SDL
 	virtual SDL_Window *sdl_window() = 0;
 #else
-	virtual osd_monitor_info *monitor() const = 0;
 	virtual bool win_has_menu() = 0;
 	// FIXME: cann we replace winwindow_video_window_monitor(NULL) with monitor() ?
 	virtual osd_monitor_info *winwindow_video_window_monitor(const osd_rect *proposed) = 0;
@@ -228,7 +197,7 @@ public:
 	virtual int create() = 0;
 	virtual render_primitive_list *get_primitives() = 0;
 
-	virtual slider_state* get_slider_list() { return nullptr; }
+	virtual std::vector<ui_menu_item> get_slider_list() { return m_sliders; }
 	virtual int draw(const int update) = 0;
 	virtual int xy_to_render_target(const int x, const int y, int *xt, int *yt) { return 0; };
 	virtual void save() { };
@@ -239,14 +208,94 @@ public:
 	static osd_renderer* make_for_type(int mode, osd_window *window, int extra_flags = FLAG_NONE);
 
 protected:
+	virtual void build_slider_list() { }
+
 	/* Internal flags */
 	static const int FI_CHANGED                 = 0x010000;
-	bool        m_sliders_dirty;
+	bool        				m_sliders_dirty;
+	std::vector<ui_menu_item>	m_sliders;
 
 private:
 	osd_window  *m_window;
 	int         m_flags;
 };
 
+
+
+//============================================================
+//  CONSTANTS
+//============================================================
+
+#define MAX_VIDEO_WINDOWS           (4)
+
+#define VIDEO_SCALE_MODE_NONE       (0)
+
+#define GLSL_SHADER_MAX 10
+
+
+//============================================================
+//  TYPE DEFINITIONS
+//============================================================
+
+struct osd_video_config
+{
+	// global configuration
+	int                 windowed;                   // start windowed?
+	int                 prescale;                   // prescale factor
+	int                 keepaspect;                 // keep aspect ratio
+	int                 numscreens;                 // number of screens
+	int                 fullstretch;                // fractional stretch
+
+	// hardware options
+	int                 mode;                       // output mode
+	int                 waitvsync;                  // spin until vsync
+	int                 syncrefresh;                // sync only to refresh rate
+	int                 switchres;                  // switch resolutions
+
+	// d3d, accel, opengl
+	int                 filter;                     // enable filtering
+	//int                 filter;         // enable filtering, disabled if glsl_filter>0
+
+	// OpenGL options
+	int                 glsl;
+	int                 glsl_filter;        // glsl filtering, >0 disables filter
+	char *              glsl_shader_mamebm[GLSL_SHADER_MAX]; // custom glsl shader set, mame bitmap
+	int                 glsl_shader_mamebm_num; // custom glsl shader set number, mame bitmap
+	char *              glsl_shader_scrn[GLSL_SHADER_MAX]; // custom glsl shader set, screen bitmap
+	int                 glsl_shader_scrn_num; // custom glsl shader number, screen bitmap
+	int                 pbo;
+	int                 vbo;
+	int                 allowtexturerect;   // allow GL_ARB_texture_rectangle, default: no
+	int                 forcepow2texture;   // force power of two textures, default: no
+
+	// dd, d3d
+	int                 triplebuf;                  // triple buffer
+
+	//============================================================
+	// SDL - options
+	//============================================================
+	int                 novideo;                // don't draw, for pure CPU benchmarking
+
+	int                 centerh;
+	int                 centerv;
+
+	// vector options
+	float               beamwidth;      // beam width
+
+	// perftest
+	int                 perftest;       // print out real video fps
+
+	// X11 options
+	int                 restrictonemonitor; // in fullscreen, confine to Xinerama monitor 0
+
+	// YUV options
+	int                 scale_mode;
+};
+
+//============================================================
+//  GLOBAL VARIABLES
+//============================================================
+
+extern osd_video_config video_config;
 
 #endif /* __OSDWINDOW__ */

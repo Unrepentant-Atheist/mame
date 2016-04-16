@@ -1,6 +1,8 @@
 [bgfx](https://github.com/bkaradzic/bgfx) - Cross-platform rendering library
 ============================================================================
 
+[![Join the chat at https://gitter.im/bkaradzic/bgfx](https://badges.gitter.im/bkaradzic/bgfx.svg)](https://gitter.im/bkaradzic/bgfx)
+
 [![Build Status](https://travis-ci.org/bkaradzic/bgfx.svg?branch=master)](https://travis-ci.org/bkaradzic/bgfx)
 [![Build status](https://ci.appveyor.com/api/projects/status/ipa3ojgeaet1oko5?svg=true)](https://ci.appveyor.com/project/bkaradzic/bgfx)
 
@@ -21,10 +23,11 @@ Supported rendering backends:
  * OpenGL ES 2
  * OpenGL ES 3.1
  * WebGL 1.0
+ * WebGL 2.0
 
 Supported HMD:
 
- * OculusVR (0.4.2+)
+ * OculusVR (1.3.0)
 
 Supported platforms:
 
@@ -55,19 +58,30 @@ Languages:
  * [Go language API bindings](https://github.com/james4k/go-bgfx)
  * [Java language API bindings](https://github.com/enleeten/twilight-bgfx)
  * [Haskell language API bindings](https://github.com/haskell-game/bgfx)
+ * [Python language API bindings](https://github.com/jnadro/pybgfx#pybgf)
  * [Rust language API bindings](https://github.com/rhoot/bgfx-rs)
 
-Build
------
+[Building](https://bkaradzic.github.io/bgfx/build.html)
+----------------------------------------------------
 
  - AppVeyor https://ci.appveyor.com/project/bkaradzic/bgfx
  - TravisCI https://travis-ci.org/bkaradzic/bgfx
+
+[Examples](https://bkaradzic.github.io/bgfx/examples.html)
+----------------------------------------------------------
+
+[API Reference](https://bkaradzic.github.io/bgfx/bgfx.html)
+-----------------------------------------------------------
+
+[Tools](https://bkaradzic.github.io/bgfx/tools.html)
+----------------------------------------------------
 
 Who is using it?
 ----------------
 
 http://airmech.com/ AirMech is a free-to-play futuristic action real-time
-strategy video game developed and published by Carbon Games.
+strategy video game developed and published by Carbon Games.  
+![airmech](https://www.mobygames.com/images/shots/l/830630-airmech-playstation-4-screenshot-blue-bar-on-your-mech-indicates.jpg)
 
 https://github.com/dariomanesku/cmftStudio cmftStudio - cubemap filtering tool.  
 ![cmftStudio](https://github.com/dariomanesku/cmftStudio/raw/master/screenshots/cmftStudio_small.jpg)
@@ -117,18 +131,13 @@ http://makingartstudios.itch.io/dls - DLS the digital logic simulator game.
 ![dls-screenshot](https://img.itch.io/aW1hZ2UvMzk3MTgvMTc5MjQ4LnBuZw==/original/kA%2FQPb.png)
 
 https://github.com/mamedev/mame MAME - Multiple Arcade Machine Emulator
+[Try MAME in Browser!](http://fos.textfiles.com/dfjustin/pacman/pacman/)  
+![mame-screenshot](https://raw.githubusercontent.com/mamedev/www.mamedev.org/d8d716dbb63919a11964b5d47b9b7f6cfa006b56/bgfx/Raiden.png)
 
-[Building](https://bkaradzic.github.io/bgfx/build.html)
--------------------------------------------------------
-
-[Examples](https://bkaradzic.github.io/bgfx/examples.html)
-----------------------------------------------------------
-
-[API Reference](https://bkaradzic.github.io/bgfx/bgfx.html)
------------------------------------------------------------
-
-[Tools](https://bkaradzic.github.io/bgfx/tools.html)
-----------------------------------------------------
+https://blackshift.itch.io/blackshift - Blackshift is a grid-based, space-themed
+action puzzle game which isn't afraid of complexity — think Chip's Challenge on
+crack.  
+![blackshift-screenshot](https://img.itch.io/aW1hZ2UvNTA3NDkvMjU2OTIzLmpwZw==/original/V%2BbpZD.jpg)
 
 [License (BSD 2-clause)](https://bkaradzic.github.io/bgfx/license.html)
 -----------------------------------------------------------------------

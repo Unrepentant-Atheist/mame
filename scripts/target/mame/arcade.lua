@@ -100,7 +100,7 @@ CPUS["SM8500"] = true
 CPUS["MINX"] = true
 CPUS["SSEM"] = true
 CPUS["AVR8"] = true
---CPUS["TMS0980"] = true
+--CPUS["TMS1000"] = true
 CPUS["I4004"] = true
 CPUS["SUPERFX"] = true
 CPUS["Z8"] = true
@@ -249,6 +249,7 @@ SOUNDS["TMS5110A"] = true
 SOUNDS["LMC1992"] = true
 SOUNDS["AWACS"] = true
 SOUNDS["YMZ770"] = true
+SOUNDS["MPEG_AUDIO"] = true
 SOUNDS["T6721A"] = true
 SOUNDS["MOS7360"] = true
 --SOUNDS["ESQPUMP"] = true
@@ -257,6 +258,7 @@ SOUNDS["SB0400"] = true
 SOUNDS["AC97"] = true
 SOUNDS["ES1373"] = true
 SOUNDS["L7A1045"] = true
+SOUNDS["AD1848"] = true
 
 --------------------------------------------------
 -- specify available video cores
@@ -563,6 +565,7 @@ MACHINES["STEPPERS"] = true
 --MACHINES["DIABLO_HD"] = true
 MACHINES["PCI9050"] = true
 --MACHINES["TMS1024"] = true
+MACHINES["GENPC"] = true
 
 --------------------------------------------------
 -- specify available bus cores
@@ -598,6 +601,7 @@ BUSES["CENTRONICS"] = true
 --BUSES["EP64"] = true
 --BUSES["EPSON_SIO"] = true
 --BUSES["GAMEBOY"] = true
+BUSES["GAMEGEAR"] = true
 --BUSES["GBA"] = true
 BUSES["GENERIC"] = true
 --BUSES["IEEE488"] = true
@@ -613,13 +617,14 @@ BUSES["MIDI"] = true
 --BUSES["MEGADRIVE"] = true
 --BUSES["MSX_SLOT"] = true
 BUSES["NEOGEO"] = true
+BUSES["NEOGEO_CTRL"] = true
 --BUSES["NES"] = true
 --BUSES["NUBUS"] = true
 --BUSES["O2"] = true
 --BUSES["ORICEXT"] = true
 --BUSES["PCE"] = true
 BUSES["PC_JOY"] = true
---BUSES["PC_KBD"] = true
+BUSES["PC_KBD"] = true
 --BUSES["PET"] = true
 --BUSES["PLUS4"] = true
 --BUSES["PSX_CONTROLLER"] = true
@@ -629,9 +634,9 @@ BUSES["RS232"] = true
 --BUSES["SATURN"] = true
 BUSES["SCSI"] = true
 --BUSES["SCV"] = true
---BUSES["SEGA8"] = true
---BUSES["SMS_CTRL"] = true
---BUSES["SMS_EXP"] = true
+BUSES["SEGA8"] = true
+BUSES["SMS_CTRL"] = true
+BUSES["SMS_EXP"] = true
 --BUSES["SNES"] = true
 --BUSES["SPC1000"] = true
 --BUSES["TI99PEB"] = true
@@ -781,6 +786,10 @@ function createMAMEProjects(_target, _subtarget, _name)
 		MAME_DIR .. "3rdparty",
 		GEN_DIR  .. "mame/layout",
 	}
+	includedirs {
+		ext_includedir("flac"),
+	}
+
 end
 
 function createProjects_mame_arcade(_target, _subtarget)
@@ -795,10 +804,8 @@ files {
 	MAME_DIR .. "src/mame/machine/nmk112.h",
 	MAME_DIR .. "src/mame/machine/pcshare.cpp",
 	MAME_DIR .. "src/mame/machine/pcshare.h",
-	MAME_DIR .. "src/mame/machine/segacrpt.cpp",
-	MAME_DIR .. "src/mame/machine/segacrpt.h",
-	MAME_DIR .. "src/mame/machine/segacrp2.cpp",
-	MAME_DIR .. "src/mame/machine/segacrp2.h",
+	MAME_DIR .. "src/mame/machine/segacrpt_device.cpp",
+	MAME_DIR .. "src/mame/machine/segacrpt_device.h",
 	MAME_DIR .. "src/mame/machine/ticket.cpp",
 	MAME_DIR .. "src/mame/machine/ticket.h",
 	MAME_DIR .. "src/mame/video/avgdvg.cpp",
@@ -1860,6 +1867,7 @@ files {
 	MAME_DIR .. "src/mame/drivers/m62.cpp",
 	MAME_DIR .. "src/mame/includes/m62.h",
 	MAME_DIR .. "src/mame/video/m62.cpp",
+	MAME_DIR .. "src/mame/drivers/spartanxtec.cpp",
 	MAME_DIR .. "src/mame/drivers/m63.cpp",
 	MAME_DIR .. "src/mame/drivers/m72.cpp",
 	MAME_DIR .. "src/mame/includes/m72.h",
@@ -2440,6 +2448,7 @@ files {
 	MAME_DIR .. "src/mame/drivers/mcr3.cpp",
 	MAME_DIR .. "src/mame/includes/mcr3.h",
 	MAME_DIR .. "src/mame/video/mcr3.cpp",
+	MAME_DIR .. "src/mame/drivers/spyhuntertec.cpp",
 	MAME_DIR .. "src/mame/drivers/mcr68.cpp",
 	MAME_DIR .. "src/mame/includes/mcr68.h",
 	MAME_DIR .. "src/mame/machine/mcr68.cpp",
@@ -3036,6 +3045,8 @@ files {
 	MAME_DIR .. "src/mame/machine/naomim2.h",
 	MAME_DIR .. "src/mame/machine/naomim4.cpp",
 	MAME_DIR .. "src/mame/machine/naomim4.h",
+	MAME_DIR .. "src/mame/machine/m3comm.cpp",
+	MAME_DIR .. "src/mame/machine/m3comm.h",
 	MAME_DIR .. "src/mame/machine/315-5881_crypt.cpp",
 	MAME_DIR .. "src/mame/machine/315-5881_crypt.h",
 	MAME_DIR .. "src/mame/machine/awboard.cpp",
@@ -3054,6 +3065,10 @@ files {
 	MAME_DIR .. "src/mame/drivers/puckpkmn.cpp",
 	MAME_DIR .. "src/mame/drivers/segac2.cpp",
 	MAME_DIR .. "src/mame/drivers/segae.cpp",
+	MAME_DIR .. "src/mame/drivers/sms.cpp",
+	MAME_DIR .. "src/mame/includes/sms.h",
+	MAME_DIR .. "src/mame/machine/sms.cpp",
+	MAME_DIR .. "src/mame/drivers/sms_bootleg.cpp",
 	MAME_DIR .. "src/mame/drivers/shtzone.cpp",
 	MAME_DIR .. "src/mame/drivers/segacoin.cpp",
 	MAME_DIR .. "src/mame/drivers/segag80r.cpp",
@@ -3113,6 +3128,8 @@ files {
 	MAME_DIR .. "src/mame/video/suprloco.cpp",
 	MAME_DIR .. "src/mame/drivers/system1.cpp",
 	MAME_DIR .. "src/mame/includes/system1.h",
+	MAME_DIR .. "src/mame/machine/segacrp2_device.cpp",
+	MAME_DIR .. "src/mame/machine/segacrp2_device.h",
 	MAME_DIR .. "src/mame/video/system1.cpp",
 	MAME_DIR .. "src/mame/drivers/system16.cpp",
 	MAME_DIR .. "src/mame/includes/system16.h",
@@ -3234,7 +3251,7 @@ files {
 	MAME_DIR .. "src/mame/machine/n64.cpp",
 	MAME_DIR .. "src/mame/video/n64.cpp",
 	MAME_DIR .. "src/mame/video/n64types.h",
-	MAME_DIR .. "src/mame/video/rdpfiltr.inc",		
+	MAME_DIR .. "src/mame/video/rdpfiltr.inc",
 	MAME_DIR .. "src/mame/video/n64.h",
 	MAME_DIR .. "src/mame/video/rdpblend.cpp",
 	MAME_DIR .. "src/mame/video/rdpblend.h",
@@ -4342,6 +4359,7 @@ files {
 	MAME_DIR .. "src/mame/drivers/jongkyo.cpp",
 	MAME_DIR .. "src/mame/drivers/joystand.cpp",
 	MAME_DIR .. "src/mame/drivers/jubilee.cpp",
+	MAME_DIR .. "src/mame/drivers/jungleyo.cpp",
 	MAME_DIR .. "src/mame/drivers/kas89.cpp",
 	MAME_DIR .. "src/mame/drivers/kingpin.cpp",
 	MAME_DIR .. "src/mame/drivers/koikoi.cpp",

@@ -3,10 +3,6 @@
 #ifndef _osdsdl_h_
 #define _osdsdl_h_
 
-#include "sdlinc.h"
-
-#include "watchdog.h"
-#include "clifront.h"
 #include "modules/lib/osdobj_common.h"
 #include "modules/osdmodule.h"
 #include "modules/font/font_module.h"
@@ -149,21 +145,9 @@ public:
 
 	virtual bool video_init() override;
 	virtual bool window_init() override;
-#ifdef USE_OLD_SDL_INPUT
-	virtual bool input_init() override;
-	virtual void input_pause() override;
-	virtual void input_resume() override;
-#endif
-	virtual bool output_init() override;
-	//virtual bool midi_init();
 
 	virtual void video_exit() override;
 	virtual void window_exit() override;
-#ifdef USE_OLD_SDL_INPUT
-	virtual void input_exit() override;
-#endif
-	virtual void output_exit() override;
-	//virtual void midi_exit();
 
 	// sdl specific
 	void poll_inputs(running_machine &machine);
@@ -173,15 +157,16 @@ public:
 
 	sdl_options &options() { return m_options; }
 
+protected:
+	virtual void build_slider_list() override;
+	virtual void update_slider_list() override;
+
 private:
 	virtual void osd_exit() override;
 
 	void extract_video_config();
 
 	sdl_options &m_options;
-
-	watchdog *m_watchdog;
-
 };
 
 //============================================================

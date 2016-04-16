@@ -173,52 +173,19 @@ function exampleProject(_name)
 	end
 
 	if _OPTIONS["with-ovr"] then
-		links   {
-			"winmm",
-			"ws2_32",
-		}
+		configuration { "x32" }
+			libdirs { path.join("$(OVR_DIR)/LibOVR/Lib/Windows/Win32/Release", _ACTION) }
 
-		-- Check for LibOVR 5.0+
-		if os.isdir(path.join(os.getenv("OVR_DIR"), "LibOVR/Lib/Windows/Win32/Debug/VS2012")) then
+		configuration { "x64" }
+			libdirs { path.join("$(OVR_DIR)/LibOVR/Lib/Windows/x64/Release", _ACTION) }
 
-			configuration { "x32", "Debug" }
-				libdirs { path.join("$(OVR_DIR)/LibOVR/Lib/Windows/Win32/Debug", _ACTION) }
-
-			configuration { "x32", "Release" }
-				libdirs { path.join("$(OVR_DIR)/LibOVR/Lib/Windows/Win32/Release", _ACTION) }
-
-			configuration { "x64", "Debug" }
-				libdirs { path.join("$(OVR_DIR)/LibOVR/Lib/Windows/x64/Debug", _ACTION) }
-
-			configuration { "x64", "Release" }
-				libdirs { path.join("$(OVR_DIR)/LibOVR/Lib/Windows/x64/Release", _ACTION) }
-
-			configuration { "x32 or x64" }
-				links { "libovr" }
-		else
-			configuration { "x32" }
-				libdirs { path.join("$(OVR_DIR)/LibOVR/Lib/Win32", _ACTION) }
-
-			configuration { "x64" }
-				libdirs { path.join("$(OVR_DIR)/LibOVR/Lib/x64", _ACTION) }
-
-			configuration { "x32", "Debug" }
-				links { "libovrd" }
-
-			configuration { "x32", "Release" }
-				links { "libovr" }
-
-			configuration { "x64", "Debug" }
-				links { "libovr64d" }
-
-			configuration { "x64", "Release" }
-				links { "libovr64" }
-		end
+		configuration { "x32 or x64" }
+			links { "libovr" }
 
 		configuration {}
 	end
 
-	configuration { "vs*" }
+	configuration { "vs*", "x32 or x64" }
 		linkoptions {
 			"/ignore:4199", -- LNK4199: /DELAYLOAD:*.dll ignored; no imports found from *.dll
 		}
@@ -226,7 +193,7 @@ function exampleProject(_name)
 			"DelayImp",
 		}
 
-	configuration { "vs201*" }
+	configuration { "vs201*", "x32 or x64" }
 		linkoptions { -- this is needed only for testing with GLES2/3 on Windows with VS201x
 			"/DELAYLOAD:\"libEGL.dll\"",
 			"/DELAYLOAD:\"libGLESv2.dll\"",
@@ -234,11 +201,23 @@ function exampleProject(_name)
 
 	configuration { "mingw*" }
 		targetextension ".exe"
-
-	configuration { "vs20* or mingw*" }
 		links {
 			"gdi32",
 			"psapi",
+		}
+
+	configuration { "vs20*", "x32 or x64" }
+		links {
+			"gdi32",
+			"psapi",
+		}
+
+	configuration { "durango" }
+		links {
+			"d3d11_x",
+			"d3d12_x",
+			"combase",
+			"kernelx",
 		}
 
 	configuration { "winphone8* or winstore8*" }
@@ -318,7 +297,7 @@ function exampleProject(_name)
 			"SDL2",
 			"pthread",
 		}
-		
+
 	configuration { "rpi" }
 		links {
 			"X11",
@@ -409,6 +388,8 @@ exampleProject("23-vectordisplay")
 exampleProject("24-nbody")
 exampleProject("26-occlusion")
 exampleProject("27-terrain")
+exampleProject("28-wireframe")
+exampleProject("29-debugdraw")
 
 -- C99 source doesn't compile under WinRT settings
 if not premake.vstudio.iswinrt() then

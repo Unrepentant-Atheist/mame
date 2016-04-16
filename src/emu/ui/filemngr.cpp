@@ -2,7 +2,7 @@
 // copyright-holders:Nathan Woods
 /*********************************************************************
 
-    ui/filemngr.c
+    ui/filemngr.cpp
 
     MESS's clunky built-in file manager
 
@@ -129,6 +129,9 @@ void ui_menu_file_manager::populate()
 			image_interface_iterator subiterator(*dev);
 			for (device_image_interface *scan = subiterator.first(); scan != nullptr; scan = subiterator.next())
 			{
+                if (!scan->user_loadable())
+                    continue;
+                
 				// if it is a children device, and not something further down the device tree, we want it in the menu!
 				if (strcmp(scan->device().owner()->tag(), dev->tag()) == 0)
 					if (devtags.insert(scan->device().tag()).second)
@@ -139,7 +142,7 @@ void ui_menu_file_manager::populate()
 							if (first_entry)
 								first_entry = false;
 							else
-								item_append(MENU_SEPARATOR_ITEM, nullptr, 0, nullptr);
+								item_append(ui_menu_item_type::SEPARATOR);
 							item_append(string_format("[root%s]", dev->tag()).c_str(), nullptr, 0, nullptr);
 							tag_appended = true;
 						}
@@ -150,7 +153,7 @@ void ui_menu_file_manager::populate()
 			}
 		}
 	}
-	item_append(MENU_SEPARATOR_ITEM, nullptr, 0, nullptr);
+	item_append(ui_menu_item_type::SEPARATOR);
 	item_append("Reset",  nullptr, 0, (void *)1);
 
 	custombottom = machine().ui().get_line_height() + 3.0f * UI_BOX_TB_BORDER;

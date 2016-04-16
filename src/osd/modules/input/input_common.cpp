@@ -9,10 +9,8 @@
 //============================================================
 
 #include "input_module.h"
-#include "modules/osdmodule.h"
 #include "modules/lib/osdobj_common.h"
 
-#include <mutex>
 #include <memory>
 
 // MAME headers
@@ -33,13 +31,16 @@
 #include <windows.h>
 #define KEY_TRANS_ENTRY0(mame, sdlsc, sdlkey, disc, virtual, ascii, UI) { ITEM_ID_##mame, KEY_ ## disc, virtual, ascii, "ITEM_ID_"#mame, (char *) UI }
 #define KEY_TRANS_ENTRY1(mame, sdlsc, sdlkey, disc, virtual, ascii)     { ITEM_ID_##mame, KEY_ ## disc, virtual, ascii, "ITEM_ID_"#mame, (char*) #mame }
-#else
+#elif defined(OSD_SDL)
 // SDL include
 #include <sdlinc.h>
 #define KEY_TRANS_ENTRY0(mame, sdlsc, sdlkey, disc, virtual, ascii, UI) { ITEM_ID_##mame, SDL_SCANCODE_ ## sdlsc, SDLK_ ## sdlkey, ascii, "ITEM_ID_"#mame, (char *) UI }
 #define KEY_TRANS_ENTRY1(mame, sdlsc, sdlkey, disc, virtual, ascii)     { ITEM_ID_##mame, SDL_SCANCODE_ ## sdlsc, SDLK_ ## sdlkey, ascii, "ITEM_ID_"#mame, (char*) #mame }
+#else
+// osd mini
 #endif
 
+#if defined(OSD_WINDOWS) || defined(OSD_SDL)
 key_trans_entry keyboard_trans_table::s_default_table[] =
 {
 	//              MAME key       sdl scancode  sdl key       di scancode     virtual key     ascii     ui
@@ -86,7 +87,7 @@ key_trans_entry keyboard_trans_table::s_default_table[] =
 	KEY_TRANS_ENTRY1(TILDE,        GRAVE,        BACKQUOTE,    GRAVE,          VK_OEM_3,       '`'),
 	KEY_TRANS_ENTRY1(LSHIFT,       LSHIFT,       LSHIFT,       LSHIFT,         VK_LSHIFT,      0),
 	KEY_TRANS_ENTRY1(BACKSLASH,    BACKSLASH,    BACKSLASH,    BACKSLASH,      VK_OEM_5,       '\\'),
-	KEY_TRANS_ENTRY1(BACKSLASH2,   0,            0,            OEM_102,        VK_OEM_102,     '<'),
+	KEY_TRANS_ENTRY1(BACKSLASH2,   NONUSHASH,    UNKNOWN,      OEM_102,        VK_OEM_102,     '<'),
 	KEY_TRANS_ENTRY1(Z,            Z,            z,            Z,              'Z',            'Z'),
 	KEY_TRANS_ENTRY1(X,            X,            x,            X,              'X',            'X'),
 	KEY_TRANS_ENTRY1(C,            C,            c,            C,              'C',            'C'),
@@ -181,7 +182,14 @@ keyboard_trans_table::keyboard_trans_table()
 	m_table = s_default_table;
 	m_table_size = ARRAY_LENGTH(s_default_table);
 }
+#else
+keyboard_trans_table::keyboard_trans_table()
+{
+	m_table = nullptr;
+	m_table_size = 0;
+}
 
+#endif
 // public constructor to allow creation of non-default instances
 keyboard_trans_table::keyboard_trans_table(std::unique_ptr<key_trans_entry[]> entries, unsigned int size)
 {
@@ -190,7 +198,7 @@ keyboard_trans_table::keyboard_trans_table(std::unique_ptr<key_trans_entry[]> en
 	m_table_size = size;
 }
 
-int keyboard_trans_table::lookup_mame_index(const char *scode)
+int keyboard_trans_table::lookup_mame_index(const char *scode) const
 {
 	for (int i = 0; i < m_table_size; i++)
 	{
@@ -200,7 +208,7 @@ int keyboard_trans_table::lookup_mame_index(const char *scode)
 	return -1;
 }
 
-input_item_id keyboard_trans_table::lookup_mame_code(const char *scode)
+input_item_id keyboard_trans_table::lookup_mame_code(const char *scode) const
 {
 	int const index = lookup_mame_index(scode);
 	if (index >= 0)
@@ -212,7 +220,7 @@ input_item_id keyboard_trans_table::lookup_mame_code(const char *scode)
 // Windows specific lookup methods
 #if defined(OSD_WINDOWS)
 
-input_item_id keyboard_trans_table::map_di_scancode_to_itemid(int scancode)
+input_item_id keyboard_trans_table::map_di_scancode_to_itemid(int scancode) const
 {
 	int tablenum;
 
@@ -229,7 +237,7 @@ input_item_id keyboard_trans_table::map_di_scancode_to_itemid(int scancode)
 //  wininput_vkey_for_mame_code
 //============================================================
 
-int keyboard_trans_table::vkey_for_mame_code(input_code code)
+int keyboard_trans_table::vkey_for_mame_code(input_code code) const
 {
 	// only works for keyboard switches
 	if (code.device_class() == DEVICE_CLASS_KEYBOARD && code.item_class() == ITEM_CLASS_SWITCH)

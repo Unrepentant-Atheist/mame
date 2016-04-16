@@ -62,7 +62,7 @@ static void get_resolution(const char *defdata, const char *data, osd_window_con
 //============================================================
 
 // FIXME: Temporary workaround
-static osd_window_config   windows[MAX_WINDOWS];        // configuration data per-window
+static osd_window_config   windows[MAX_VIDEO_WINDOWS];        // configuration data per-window
 
 bool windows_osd_interface::video_init()
 {
@@ -86,15 +86,6 @@ bool windows_osd_interface::video_init()
 		SetForegroundWindow(win_window_list->m_hwnd);
 
 	return true;
-}
-
-//============================================================
-//  get_slider_list
-//============================================================
-
-slider_state *windows_osd_interface::get_slider_list()
-{
-	return m_sliders;
 }
 
 //============================================================
@@ -153,20 +144,6 @@ void win_monitor_info::refresh()
 
 
 //============================================================
-//  sdlvideo_monitor_get_aspect
-//============================================================
-
-float osd_monitor_info::aspect()
-{
-	// FIXME: returning 0 looks odd, video_config is bad
-	if (video_config.keepaspect)
-	{
-		return m_aspect / ((float)m_pos_size.width() / (float)m_pos_size.height());
-	}
-	return 0.0f;
-}
-
-//============================================================
 //  winvideo_monitor_from_handle
 //============================================================
 
@@ -189,10 +166,7 @@ osd_monitor_info *win_monitor_info::monitor_from_handle(HMONITOR hmonitor)
 
 void windows_osd_interface::update(bool skip_redraw)
 {
-	// ping the watchdog on each update
-	winmain_watchdog_ping();
-
-	update_slider_list();
+	osd_common_t::update(skip_redraw);
 
 	// if we're not skipping this redraw, update all windows
 	if (!skip_redraw)
@@ -369,7 +343,6 @@ void windows_osd_interface::extract_video_config()
 	video_config.filter        = options().filter();
 	video_config.keepaspect    = options().keep_aspect();
 	video_config.numscreens    = options().numscreens();
-	video_config.fullstretch   = options().uneven_stretch();
 
 	// if we are in debug mode, never go full screen
 	if (machine().debug_flags & DEBUG_FLAG_OSD_ENABLED)

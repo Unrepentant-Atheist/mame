@@ -1,5 +1,5 @@
 // license:BSD-3-Clause
-// copyright-holders:Dankan1890
+// copyright-holders:Maurizio Petrarota
 /*********************************************************************
 
     ui/custmenu.cpp
@@ -22,10 +22,11 @@
 //-------------------------------------------------
 //  ctor / dtor
 //-------------------------------------------------
-ui_menu_custom_filter::ui_menu_custom_filter(running_machine &machine, render_container *container, bool _single_menu) : ui_menu(machine, container)
+ui_menu_custom_filter::ui_menu_custom_filter(running_machine &machine, render_container *container, bool _single_menu)
+	: ui_menu(machine, container)
+	, m_single_menu(_single_menu)
+	, m_added(false)
 {
-	m_single_menu = _single_menu;
-	m_added = false;
 }
 
 ui_menu_custom_filter::~ui_menu_custom_filter()
@@ -158,7 +159,7 @@ void ui_menu_custom_filter::populate()
 	// add other filters
 	for (int x = 1; x <= custfltr::numother; x++)
 	{
-		item_append(MENU_SEPARATOR_ITEM, nullptr, 0, nullptr);
+		item_append(ui_menu_item_type::SEPARATOR);
 
 		// add filter items
 		arrow_flags = get_arrow_flags((int)FILTER_UNAVAILABLE + 1, (int)FILTER_LAST - 1, custfltr::other[x]);
@@ -186,7 +187,7 @@ void ui_menu_custom_filter::populate()
 		}
 	}
 
-	item_append(MENU_SEPARATOR_ITEM, nullptr, 0, nullptr);
+	item_append(ui_menu_item_type::SEPARATOR);
 
 	if (custfltr::numother > 0)
 		item_append(_("Remove last filter"), nullptr, 0, (void *)(FPTR)REMOVE_FILTER);
@@ -194,7 +195,7 @@ void ui_menu_custom_filter::populate()
 	if (custfltr::numother < MAX_CUST_FILTER - 2)
 		item_append(_("Add filter"), nullptr, 0, (void *)(FPTR)ADD_FILTER);
 
-	item_append(MENU_SEPARATOR_ITEM, nullptr, 0, nullptr);
+	item_append(ui_menu_item_type::SEPARATOR);
 	customtop = machine().ui().get_line_height() + 3.0f * UI_BOX_TB_BORDER;
 }
 
@@ -208,7 +209,7 @@ void ui_menu_custom_filter::custom_render(void *selectedref, float top, float bo
 
 	// get the size of the text
 	mui.draw_text_full(container, _("Select custom filters:"), 0.0f, 0.0f, 1.0f, JUSTIFY_CENTER, WRAP_NEVER,
-									DRAW_NONE, ARGB_WHITE, ARGB_BLACK, &width, nullptr);
+		DRAW_NONE, ARGB_WHITE, ARGB_BLACK, &width, nullptr);
 	width += (2.0f * UI_BOX_LR_BORDER) + 0.01f;
 	float maxwidth = MAX(width, origx2 - origx1);
 
@@ -228,7 +229,7 @@ void ui_menu_custom_filter::custom_render(void *selectedref, float top, float bo
 
 	// draw the text within it
 	mui.draw_text_full(container, _("Select custom filters:"), x1, y1, x2 - x1, JUSTIFY_CENTER, WRAP_NEVER,
-									DRAW_NORMAL, UI_TEXT_COLOR, UI_TEXT_BG_COLOR, nullptr, nullptr);
+		DRAW_NORMAL, UI_TEXT_COLOR, UI_TEXT_BG_COLOR, nullptr, nullptr);
 }
 
 //-------------------------------------------------
@@ -239,7 +240,7 @@ void ui_menu_custom_filter::save_custom_filters()
 {
 	// attempt to open the output file
 	emu_file file(machine().ui().options().ui_path(), OPEN_FLAG_WRITE | OPEN_FLAG_CREATE | OPEN_FLAG_CREATE_PATHS);
-	if (file.open("custom_", emulator_info::get_configname(), "_filter.ini") == FILERR_NONE)
+	if (file.open("custom_", emulator_info::get_configname(), "_filter.ini") == osd_file::error::NONE)
 	{
 		// generate custom filters info
 		std::ostringstream cinfo;
@@ -266,7 +267,10 @@ void ui_menu_custom_filter::save_custom_filters()
 //  ctor / dtor
 //-------------------------------------------------
 ui_menu_swcustom_filter::ui_menu_swcustom_filter(running_machine &machine, render_container *container, const game_driver *_driver, s_filter &_filter) :
-	ui_menu(machine, container), m_added(false), m_filter(_filter), m_driver(_driver)
+	ui_menu(machine, container)
+	, m_added(false)
+	, m_filter(_filter)
+	, m_driver(_driver)
 {
 }
 
@@ -443,7 +447,7 @@ void ui_menu_swcustom_filter::populate()
 	// add other filters
 	for (int x = 1; x <= sw_custfltr::numother; x++)
 	{
-		item_append(MENU_SEPARATOR_ITEM, nullptr, 0, nullptr);
+		item_append(ui_menu_item_type::SEPARATOR);
 
 		// add filter items
 		arrow_flags = get_arrow_flags((int)UI_SW_UNAVAILABLE + 1, (int)UI_SW_LAST - 1, sw_custfltr::other[x]);
@@ -498,7 +502,7 @@ void ui_menu_swcustom_filter::populate()
 		}
 	}
 
-	item_append(MENU_SEPARATOR_ITEM, nullptr, 0, nullptr);
+	item_append(ui_menu_item_type::SEPARATOR);
 
 	if (sw_custfltr::numother > 0)
 		item_append(_("Remove last filter"), nullptr, 0, (void *)(FPTR)REMOVE_FILTER);
@@ -506,7 +510,7 @@ void ui_menu_swcustom_filter::populate()
 	if (sw_custfltr::numother < MAX_CUST_FILTER - 2)
 		item_append(_("Add filter"), nullptr, 0, (void *)(FPTR)ADD_FILTER);
 
-	item_append(MENU_SEPARATOR_ITEM, nullptr, 0, nullptr);
+	item_append(ui_menu_item_type::SEPARATOR);
 
 	customtop = machine().ui().get_line_height() + 3.0f * UI_BOX_TB_BORDER;
 }
@@ -521,7 +525,7 @@ void ui_menu_swcustom_filter::custom_render(void *selectedref, float top, float 
 
 	// get the size of the text
 	mui.draw_text_full(container, _("Select custom filters:"), 0.0f, 0.0f, 1.0f, JUSTIFY_CENTER, WRAP_NEVER,
-									DRAW_NONE, ARGB_WHITE, ARGB_BLACK, &width, nullptr);
+		DRAW_NONE, ARGB_WHITE, ARGB_BLACK, &width, nullptr);
 	width += (2.0f * UI_BOX_LR_BORDER) + 0.01f;
 	float maxwidth = MAX(width, origx2 - origx1);
 
@@ -541,7 +545,7 @@ void ui_menu_swcustom_filter::custom_render(void *selectedref, float top, float 
 
 	// draw the text within it
 	mui.draw_text_full(container, _("Select custom filters:"), x1, y1, x2 - x1, JUSTIFY_CENTER, WRAP_NEVER,
-									DRAW_NORMAL, UI_TEXT_COLOR, UI_TEXT_BG_COLOR, nullptr, nullptr);
+		DRAW_NORMAL, UI_TEXT_COLOR, UI_TEXT_BG_COLOR, nullptr, nullptr);
 }
 
 //-------------------------------------------------
@@ -552,7 +556,7 @@ void ui_menu_swcustom_filter::save_sw_custom_filters()
 {
 	// attempt to open the output file
 	emu_file file(machine().ui().options().ui_path(), OPEN_FLAG_WRITE | OPEN_FLAG_CREATE | OPEN_FLAG_CREATE_PATHS);
-	if (file.open("custom_", m_driver->name, "_filter.ini") == FILERR_NONE)
+	if (file.open("custom_", m_driver->name, "_filter.ini") == osd_file::error::NONE)
 	{
 		// generate custom filters info
 		std::ostringstream cinfo;

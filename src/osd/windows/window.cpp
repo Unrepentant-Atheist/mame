@@ -12,11 +12,11 @@
 // Needed for RAW Input
 #define WM_INPUT 0x00FF
 
-#include <stdio.h> // must be here otherwise issues with I64FMT in MINGW
 // standard C headers
 #include <process.h>
 
 #include <atomic>
+#include <chrono>
 
 // MAME headers
 #include "emu.h"
@@ -43,6 +43,9 @@
 #define IS_EXTENDED(x) (0x01000000 & x)
 #define MAKE_DI_SCAN(scan, isextended) (scan & 0x7f) | (isextended ? 0x80 : 0x00)
 #define WINOSD(machine) downcast<windows_osd_interface*>(&machine.osd())
+
+// min(x, y) macro interferes with chrono time_point::min()
+#undef min
 
 //============================================================
 //  PARAMETERS
@@ -94,15 +97,13 @@ static int win_physical_height;
 //============================================================
 
 // event handling
-static DWORD last_event_check;
+static std::chrono::system_clock::time_point last_event_check;
 
 // debugger
 static int in_background;
 
 static int ui_temp_pause;
 static int ui_temp_was_paused;
-
-static int multithreading_enabled;
 
 static HANDLE window_thread;
 static DWORD window_threadid;
@@ -152,14 +153,13 @@ static void mtlog_dump(void)
 	for (i = 0; i < mtlogindex; i++)
 	{
 		osd_ticks_t curr = mtlog[i].timestamp * 1000000 / cps;
-		fprintf(f, "%20" I64FMT "d %10" I64FMT "d %s\n", (UINT64)curr, (UINT64)(curr - last), mtlog[i].event);
+		fprintf(f, "%s",string_format("%20I64d %10I64d %s\n", (UINT64)curr, (UINT64)(curr - last), mtlog[i].event).c_str());
 		last = curr;
 	}
 	fclose(f);
 }
 #else
 void mtlog_add(const char *event) { }
-static void mtlog_dump(void) { }
 #endif
 
 
@@ -171,11 +171,6 @@ static void mtlog_dump(void) { }
 
 bool windows_osd_interface::window_init()
 {
-	size_t temp;
-
-	// determine if we are using multithreading or not
-	multithreading_enabled = downcast<windows_options &>(machine().options()).multithreading();
-
 	// get the main thread ID before anything else
 	main_threadid = GetCurrentThreadId();
 
@@ -187,30 +182,8 @@ bool windows_osd_interface::window_init()
 	if (!ui_pause_event)
 		fatalerror("Failed to create pause event\n");
 
-	// if multithreading, create a thread to run the windows
-	if (multithreading_enabled)
-	{
-		// create an event to signal when the window thread is ready
-		window_thread_ready_event = CreateEvent(nullptr, TRUE, FALSE, nullptr);
-		if (!window_thread_ready_event)
-			fatalerror("Failed to create window thread ready event\n");
-
-		// create a thread to run the windows from
-		temp = _beginthreadex(nullptr, 0, win_window_info::thread_entry, this, 0, (unsigned *)&window_threadid);
-		window_thread = (HANDLE)temp;
-		if (window_thread == nullptr)
-			fatalerror("Failed to create window thread\n");
-
-		// set the thread priority equal to the main MAME thread
-		SetThreadPriority(window_thread, GetThreadPriority(GetCurrentThread()));
-	}
-
-	// otherwise, treat the window thread as the main thread
-	else
-	{
-		window_thread = GetCurrentThread();
-		window_threadid = main_threadid;
-	}
+	window_thread = GetCurrentThread();
+	window_threadid = main_threadid;
 
 	const int fallbacks[VIDEO_MODE_COUNT] = {
 		-1,                 // NONE -> no fallback
@@ -282,6 +255,7 @@ void windows_osd_interface::update_slider_list()
 {
 	for (win_window_info *window = win_window_list; window != nullptr; window = window->m_next)
 	{
+		// check if any window has dirty sliders
 		if (window->m_renderer && window->m_renderer->sliders_dirty())
 		{
 			build_slider_list();
@@ -290,28 +264,25 @@ void windows_osd_interface::update_slider_list()
 	}
 }
 
-void windows_osd_interface::build_slider_list()
+int windows_osd_interface::window_count()
 {
-	m_sliders = nullptr;
-	slider_state *curr = m_sliders;
+	int count = 0;
 	for (win_window_info *info = win_window_list; info != nullptr; info = info->m_next)
 	{
-		slider_state *window_sliders = info->m_renderer->get_slider_list();
-		if (window_sliders != nullptr)
-		{
-			if (m_sliders == nullptr)
-			{
-				m_sliders = curr = window_sliders;
-			}
-			else
-			{
-				while (curr->next != nullptr)
-				{
-					curr = curr->next;
-				}
-				curr->next = window_sliders;
-			}
-		}
+		count++;
+	}
+	return count;
+}
+
+void windows_osd_interface::build_slider_list()
+{
+	m_sliders.clear();
+
+	for (win_window_info *window = win_window_list; window != nullptr; window = window->m_next)
+	{
+		// take the sliders of the first window
+		std::vector<ui_menu_item> window_sliders = window->m_renderer->get_slider_list();
+		m_sliders.insert(m_sliders.end(), window_sliders.begin(), window_sliders.end());
 	}
 }
 
@@ -356,15 +327,6 @@ void windows_osd_interface::window_exit()
 			break;
 	}
 
-	// if we're multithreaded, clean up the window thread
-	if (multithreading_enabled)
-	{
-		PostThreadMessage(window_threadid, WM_USER_SELF_TERMINATE, 0, 0);
-		WaitForSingleObject(window_thread, INFINITE);
-
-		mtlog_dump();
-	}
-
 	// kill the UI pause event
 	if (ui_pause_event)
 		CloseHandle(ui_pause_event);
@@ -390,7 +352,7 @@ win_window_info::win_window_info(running_machine &machine)
 		m_target(nullptr),
 		m_targetview(0),
 		m_targetorient(0),
-		m_lastclicktime(0),
+		m_lastclicktime(std::chrono::system_clock::time_point::min()),
 		m_lastclickx(0),
 		m_lastclicky(0),
 		m_renderer(nullptr),
@@ -420,12 +382,12 @@ win_window_info::~win_window_info()
 
 void winwindow_process_events_periodic(running_machine &machine)
 {
-	DWORD currticks = GetTickCount();
+	auto currticks = std::chrono::system_clock::now();
 
 	assert(GetCurrentThreadId() == main_threadid);
 
 	// update once every 1/8th of a second
-	if (currticks - last_event_check < 1000 / 8)
+	if (currticks - last_event_check < std::chrono::milliseconds(1000 / 8))
 		return;
 	winwindow_process_events(machine, TRUE, FALSE);
 }
@@ -483,7 +445,7 @@ void winwindow_process_events(running_machine &machine, int ingame, bool nodispa
 	assert(GetCurrentThreadId() == main_threadid);
 
 	// remember the last time we did this
-	last_event_check = GetTickCount();
+	last_event_check = std::chrono::system_clock::now();
 
 	do
 	{
@@ -828,21 +790,7 @@ void win_window_info::create(running_machine &machine, int index, osd_monitor_in
 	// set the initial maximized state
 	window->m_startmaximized = options.maximize();
 
-	// finish the window creation on the window thread
-	if (multithreading_enabled)
-	{
-		// wait until the window thread is ready to respond to events
-		WaitForSingleObject(window_thread_ready_event, INFINITE);
-
-		PostThreadMessage(window_threadid, WM_USER_FINISH_CREATE_WINDOW, 0, (LPARAM)window);
-		while (window->m_init_state == 0)
-		{
-			winwindow_process_events(machine, 0, 1); //pump the message queue
-			Sleep(1);
-		}
-	}
-	else
-		window->m_init_state = window->complete_create() ? -1 : 1;
+	window->m_init_state = window->complete_create() ? -1 : 1;
 
 	// handle error conditions
 	if (window->m_init_state == -1)
@@ -943,10 +891,7 @@ void win_window_info::update()
 			// post a redraw request with the primitive list as a parameter
 			last_update_time = timeGetTime();
 			mtlog_add("winwindow_video_window_update: PostMessage start");
-			if (multithreading_enabled)
-				PostMessage(m_hwnd, WM_USER_REDRAW, 0, (LPARAM)primlist);
-			else
-				SendMessage(m_hwnd, WM_USER_REDRAW, 0, (LPARAM)primlist);
+			SendMessage(m_hwnd, WM_USER_REDRAW, 0, (LPARAM)primlist);
 			mtlog_add("winwindow_video_window_update: PostMessage end");
 		}
 	}
@@ -1102,21 +1047,7 @@ void winwindow_ui_pause_from_main_thread(running_machine &machine, int pause)
 void winwindow_ui_pause_from_window_thread(running_machine &machine, int pause)
 {
 	assert(GetCurrentThreadId() == window_threadid);
-
-	// if we're multithreaded, we have to request a pause on the main thread
-	if (multithreading_enabled)
-	{
-		// request a pause from the main thread
-		PostThreadMessage(main_threadid, WM_USER_UI_TEMP_PAUSE, pause, 0);
-
-		// if we're pausing, block until it happens
-		if (pause)
-			WaitForSingleObject(ui_pause_event, INFINITE);
-	}
-
-	// otherwise, we just do it directly
-	else
-		winwindow_ui_pause_from_main_thread(machine, pause);
+	winwindow_ui_pause_from_main_thread(machine, pause);
 }
 
 
@@ -1130,16 +1061,7 @@ void winwindow_ui_exec_on_main_thread(void (*func)(void *), void *param)
 {
 	assert(GetCurrentThreadId() == window_threadid);
 
-	// if we're multithreaded, we have to request a pause on the main thread
-	if (multithreading_enabled)
-	{
-		// request a pause from the main thread
-		PostThreadMessage(main_threadid, WM_USER_EXEC_FUNC, (WPARAM) func, (LPARAM) param);
-	}
-
-	// otherwise, we just do it directly
-	else
-		(*func)(param);
+	(*func)(param);
 }
 
 
@@ -1430,15 +1352,15 @@ LRESULT CALLBACK win_window_info::video_window_proc(HWND wnd, UINT message, WPAR
 
 		case WM_LBUTTONDOWN:
 		{
-			DWORD ticks = GetTickCount();
+			auto ticks = std::chrono::system_clock::now();
 			window->machine().ui_input().push_mouse_down_event(window->m_target, GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
 
 			// check for a double-click
-			if (ticks - window->m_lastclicktime < GetDoubleClickTime() &&
+			if (ticks - window->m_lastclicktime < std::chrono::milliseconds(GetDoubleClickTime()) &&
 				GET_X_LPARAM(lparam) >= window->m_lastclickx - 4 && GET_X_LPARAM(lparam) <= window->m_lastclickx + 4 &&
 				GET_Y_LPARAM(lparam) >= window->m_lastclicky - 4 && GET_Y_LPARAM(lparam) <= window->m_lastclicky + 4)
 			{
-				window->m_lastclicktime = 0;
+				window->m_lastclicktime = std::chrono::system_clock::time_point::min();
 				window->machine().ui_input().push_mouse_double_click_event(window->m_target, GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
 			}
 			else
@@ -1452,6 +1374,14 @@ LRESULT CALLBACK win_window_info::video_window_proc(HWND wnd, UINT message, WPAR
 
 		case WM_LBUTTONUP:
 			window->machine().ui_input().push_mouse_up_event(window->m_target, GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
+			break;
+
+		case WM_RBUTTONDOWN:
+			window->machine().ui_input().push_mouse_rdown_event(window->m_target, GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
+			break;
+
+		case WM_RBUTTONUP:
+			window->machine().ui_input().push_mouse_rup_event(window->m_target, GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
 			break;
 
 		case WM_CHAR:
@@ -1538,10 +1468,7 @@ LRESULT CALLBACK win_window_info::video_window_proc(HWND wnd, UINT message, WPAR
 
 		// close: cause MAME to exit
 		case WM_CLOSE:
-			if (multithreading_enabled)
-				PostThreadMessage(main_threadid, WM_QUIT, 0, 0);
-			else
-				window->machine().schedule_exit();
+			window->machine().schedule_exit();
 			break;
 
 		// destroy: clean up all attached rendering bits and nullptr out our hwnd
@@ -1594,6 +1521,7 @@ LRESULT CALLBACK win_window_info::video_window_proc(HWND wnd, UINT message, WPAR
 			 * should be used.
 			 */
 			window->m_monitor->refresh();
+			window->m_monitor->update_resolution(LOWORD(lparam), HIWORD(lparam));
 			break;
 
 		// set focus: if we're not the primary window, switch back
@@ -1655,13 +1583,6 @@ void win_window_info::draw_video_contents(HDC dc, int update)
 }
 
 
-static inline int better_mode(int width0, int height0, int width1, int height1, float desired_aspect)
-{
-	float aspect0 = (float)width0 / (float)height0;
-	float aspect1 = (float)width1 / (float)height1;
-	return (fabs(desired_aspect - aspect0) < fabs(desired_aspect - aspect1)) ? 0 : 1;
-}
-
 //============================================================
 //  constrain_to_aspect_ratio
 //  (window thread)
@@ -1674,19 +1595,19 @@ osd_rect win_window_info::constrain_to_aspect_ratio(const osd_rect &rect, int ad
 	INT32 propwidth, propheight;
 	INT32 minwidth, minheight;
 	INT32 maxwidth, maxheight;
+	INT32 viswidth, visheight;
 	INT32 adjwidth, adjheight;
-	float desired_aspect = 1.0f;
-	osd_dim window_dim = get_size();
-	INT32 target_width = window_dim.width();
-	INT32 target_height = window_dim.height();
-	INT32 xscale = 1, yscale = 1;
-	int newwidth, newheight;
+	float pixel_aspect;
 	osd_monitor_info *monitor = winwindow_video_window_monitor(&rect);
 
 	assert(GetCurrentThreadId() == window_threadid);
 
+	// do not constrain aspect ratio for integer scaled views
+	if (m_target->scale_mode() != SCALE_FRACTIONAL)
+		return rect;
+
 	// get the pixel aspect ratio for the target monitor
-	float pixel_aspect = monitor->aspect();
+	pixel_aspect = monitor->pixel_aspect();
 
 	// determine the proposed width/height
 	propwidth = rect.width() - extrawidth;
@@ -1713,58 +1634,6 @@ osd_rect win_window_info::constrain_to_aspect_ratio(const osd_rect &rect, int ad
 
 	// get the minimum width/height for the current layout
 	m_target->compute_minimum_size(minwidth, minheight);
-
-	// compute the appropriate visible area if we're trying to keepaspect
-	if (video_config.keepaspect)
-	{
-		// make sure the monitor is up-to-date
-		m_target->compute_visible_area(target_width, target_height, m_monitor->aspect(), m_target->orientation(), target_width, target_height);
-		desired_aspect = (float)target_width / (float)target_height;
-	}
-
-	// non-integer scaling - often gives more pleasing results in full screen
-	newwidth = target_width;
-	newheight = target_height;
-	if (!video_config.fullstretch)
-	{
-		// compute maximum integral scaling to fit the window
-		xscale = (target_width + 2) / newwidth;
-		yscale = (target_height + 2) / newheight;
-
-		// try a little harder to keep the aspect ratio if desired
-		if (video_config.keepaspect)
-		{
-			// if we could stretch more in the X direction, and that makes a better fit, bump the xscale
-			while (newwidth * (xscale + 1) <= window_dim.width() &&
-				better_mode(newwidth * xscale, newheight * yscale, newwidth * (xscale + 1), newheight * yscale, desired_aspect))
-				xscale++;
-
-			// if we could stretch more in the Y direction, and that makes a better fit, bump the yscale
-			while (newheight * (yscale + 1) <= window_dim.height() &&
-				better_mode(newwidth * xscale, newheight * yscale, newwidth * xscale, newheight * (yscale + 1), desired_aspect))
-				yscale++;
-
-			// now that we've maxed out, see if backing off the maximally stretched one makes a better fit
-			if (window_dim.width() - newwidth * xscale < window_dim.height() - newheight * yscale)
-			{
-				while (better_mode(newwidth * xscale, newheight * yscale, newwidth * (xscale - 1), newheight * yscale, desired_aspect) && (xscale >= 0))
-					xscale--;
-			}
-			else
-			{
-				while (better_mode(newwidth * xscale, newheight * yscale, newwidth * xscale, newheight * (yscale - 1), desired_aspect) && (yscale >= 0))
-					yscale--;
-			}
-		}
-
-		// ensure at least a scale factor of 1
-		if (xscale <= 0) xscale = 1;
-		if (yscale <= 0) yscale = 1;
-
-		// apply the final scale
-		newwidth *= xscale;
-		newheight *= yscale;
-	}
 
 	// clamp against the absolute minimum
 	propwidth = MAX(propwidth, MIN_WINDOW_DIM);
@@ -1796,9 +1665,12 @@ osd_rect win_window_info::constrain_to_aspect_ratio(const osd_rect &rect, int ad
 	propwidth = MIN(propwidth, maxwidth);
 	propheight = MIN(propheight, maxheight);
 
+	// compute the visible area based on the proposed rectangle
+	m_target->compute_visible_area(propwidth, propheight, pixel_aspect, m_target->orientation(), viswidth, visheight);
+
 	// compute the adjustments we need to make
-	adjwidth = (propwidth + extrawidth) - rect.width();
-	adjheight = (propheight + extraheight) - rect.height();
+	adjwidth = (viswidth + extrawidth) - rect.width();
+	adjheight = (visheight + extraheight) - rect.height();
 
 	// based on which corner we're adjusting, constrain in different ways
 	osd_rect ret(rect);
@@ -1825,7 +1697,6 @@ osd_rect win_window_info::constrain_to_aspect_ratio(const osd_rect &rect, int ad
 			ret = rect.move_by(0, -adjheight).resize(rect.width() + adjwidth, rect.height() + adjheight);
 			break;
 	}
-
 	return ret;
 }
 
@@ -1856,7 +1727,7 @@ osd_dim win_window_info::get_min_bounds(int constrain)
 	minheight += wnd_extra_height();
 
 	// if we want it constrained, figure out which one is larger
-	if (constrain)
+	if (constrain && m_target->scale_mode() == SCALE_FRACTIONAL)
 	{
 		// first constrain with no height limit
 		osd_rect test1(0,0,minwidth,10000);
@@ -1916,15 +1787,9 @@ osd_dim win_window_info::get_max_bounds(int constrain)
 	maximum = maximum.resize(tempw, temph);
 
 	// constrain to fit
-	if (constrain)
-	{
+	if (constrain && m_target->scale_mode() == SCALE_FRACTIONAL)
 		maximum = constrain_to_aspect_ratio(maximum, WMSZ_BOTTOMRIGHT);
-	}
-	else
-	{
-		// No - the maxima returned by usable_position_size are in window units, not usable units
-		//maximum = maximum.resize(maximum.width() - wnd_extra_width(), maximum.height() - wnd_extra_height());
-	}
+
 	return maximum.dim();
 }
 

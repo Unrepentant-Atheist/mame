@@ -47,7 +47,6 @@ public:
 	static void exit();
 
 	virtual int create() override;
-	virtual slider_state* get_slider_list() override;
 	virtual render_primitive_list *get_primitives() override;
 	virtual int draw(const int update) override;
 	virtual void save() override;
@@ -74,14 +73,12 @@ public:
 	void                    begin_frame();
 	void                    end_frame();
 
-	void                    draw_line(const render_primitive *prim);
-	void                    draw_quad(const render_primitive *prim);
-	void                    batch_vector(const render_primitive *prim, float line_time);
+	void                    draw_line(const render_primitive &prim);
+	void                    draw_quad(const render_primitive &prim);
+	void                    batch_vector(const render_primitive &prim, float line_time);
 	void                    batch_vectors();
 
 	vertex *                mesh_alloc(int numverts);
-
-	void                    update_textures();
 
 	void                    process_primitives();
 	void                    primitive_flush_pending();

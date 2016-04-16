@@ -14,14 +14,11 @@
 #include <sys/types.h>
 #include <signal.h>
 
-#ifdef SDLMAME_EMSCRIPTEN
-#include <emscripten.h>
-#endif
-
 // MAME headers
 #include "osdcore.h"
 #include "osdlib.h"
 
+#include "sdlinc.h"
 //============================================================
 //  osd_getenv
 //============================================================
@@ -127,7 +124,8 @@ void osd_free_executable(void *ptr, size_t size)
 
 void osd_break_into_debugger(const char *message)
 {
-	#ifdef MAME_DEBUG
+	//#ifdef MAME_DEBUG
+	#if 1
 	printf("MAME exception: %s\n", message);
 	printf("Attempting to fall into debugger\n");
 	kill(getpid(), SIGTRAP);
@@ -135,3 +133,29 @@ void osd_break_into_debugger(const char *message)
 	printf("Ignoring MAME exception: %s\n", message);
 	#endif
 }
+
+#ifdef SDLMAME_ANDROID
+char *osd_get_clipboard_text(void)
+{
+	return nullptr;
+}
+#else
+//============================================================
+//  osd_get_clipboard_text
+//============================================================
+
+char *osd_get_clipboard_text(void)
+{
+	char *result = NULL;
+
+	if (SDL_HasClipboardText())
+	{
+		char *temp = SDL_GetClipboardText();
+		result = (char *) osd_malloc_array(strlen(temp) + 1);
+		strcpy(result, temp);
+		SDL_free(temp);
+	}
+	return result;
+}
+
+#endif

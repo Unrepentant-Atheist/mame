@@ -1709,6 +1709,8 @@ if (MACHINES["PCI"]~=null) then
 		MAME_DIR .. "src/devices/machine/lpc-pit.h",
 		MAME_DIR .. "src/devices/machine/vrc4373.cpp",
 		MAME_DIR .. "src/devices/machine/vrc4373.h",
+		MAME_DIR .. "src/devices/machine/gt64xxx.cpp",
+		MAME_DIR .. "src/devices/machine/gt64xxx.h",
 	}
 end
 
@@ -2079,6 +2081,18 @@ if (MACHINES["TIMEKPR"]~=null) then
 	files {
 		MAME_DIR .. "src/devices/machine/timekpr.cpp",
 		MAME_DIR .. "src/devices/machine/timekpr.h",
+	}
+end
+
+---------------------------------------------------
+--
+--@src/devices/machine/tmc0430.h,MACHINES["TMC0430"] = true
+---------------------------------------------------
+
+if (MACHINES["TMC0430"]~=null) then
+	files {
+		MAME_DIR .. "src/devices/machine/tmc0430.cpp",
+		MAME_DIR .. "src/devices/machine/tmc0430.h",
 	}
 end
 
@@ -2722,5 +2736,17 @@ if (MACHINES["PDC"]~=null) then
 	files {
 		MAME_DIR .. "src/devices/machine/pdc.cpp",
 		MAME_DIR .. "src/devices/machine/pdc.h",
+	}
+end
+
+---------------------------------------------------
+--
+--@src/devices/machine/genpc.h,MACHINES["GENPC"] = true
+---------------------------------------------------
+
+if (MACHINES["GENPC"]~=null) then
+	files {
+		MAME_DIR .. "src/devices/machine/genpc.cpp",
+		MAME_DIR .. "src/devices/machine/genpc.h",
 	}
 end

@@ -18,7 +18,6 @@
 #ifndef __EMU_H__
 #define __EMU_H__
 
-#include <stdio.h> // must be here otherwise issues with I64FMT in MINGW
 #include <list>
 #include <vector>
 #include <memory>
@@ -42,7 +41,7 @@
 #include "devdelegate.h"
 
 // memory and address spaces
-#include "memory.h"
+#include "emumem.h"
 #include "addrmap.h"
 #include "memarray.h"
 
@@ -107,9 +106,6 @@ typedef device_t * (*machine_config_constructor)(machine_config &config, device_
 #include "sound.h"
 #include "speaker.h"
 
-// user interface
-#include "ui/ui.h"
-
 // generic helpers
 #include "devcb.h"
 #include "dispatch.h"
@@ -119,6 +115,5 @@ typedef device_t * (*machine_config_constructor)(machine_config &config, device_
 
 // member templates that don't like incomplete types
 #include "device.ipp"
-#include "machine.ipp"
 
 #endif  /* __EMU_H__ */

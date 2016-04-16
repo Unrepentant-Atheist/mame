@@ -5375,7 +5375,7 @@ PayTable   Ks+  2P  3K  STR  FL  FH  4K  SF  RF  5K  RF  (Bonus)
 	ROM_LOAD( "cap740.u50", 0x0000, 0x0100, CRC(6fe619c4) SHA1(49e43dafd010ce0fe9b2a63b96a4ddedcb933c6d) ) /* BPROM type DM74LS471 (compatible with N82S135N) verified */
 ROM_END
 
-ROM_START( pepp0467 ) /* Normal board : Uknown Bonus Poker (PP0467) */
+ROM_START( pepp0467 ) /* Normal board : Unknown Bonus Poker (PP0467) */
 /*
 PayTable   Js+  2P  3K  STR  FL  FH  4K  ?? SF  RF  (Bonus)
 -----------------------------------------------------------
@@ -6946,7 +6946,7 @@ Currently stalls with "PRINTER ERROR"
 
 	ROM_REGION( 0x100, "proms", 0 )
 	ROM_LOAD( "cap1144.u50", 0x0000, 0x0100, CRC(c80e88ef) SHA1(51c62a07f660a2f3be46a8fbb5af01cff2660e8d) )
-	
+
 	ROM_REGION( 0x1000, "printer", 0 ) /* ROM from the printer driver PCB */
 	ROM_LOAD( "lp_86.u9", 0x0000, 0x1000, CRC(cdd93c06) SHA1(96f0a6e231f355a0b82bb0e1e698edbd66ff3020) ) /* 2732 EPROM */
 ROM_END

@@ -13,7 +13,6 @@
 
 #include <memory>
 #include <chrono>
-#include <string>
 #include <queue>
 
 //============================================================
@@ -353,19 +352,35 @@ public:
 		// allocate the device object
 		auto devinfo = std::make_unique<TActual>(machine, name, module);
 
-		// Add the device to the machine
-		devinfo->m_device = machine.input().device_class(devinfo->deviceclass()).add_device(devinfo->name(), devinfo.get());
+		return add_device_internal(machine, name, module, std::move(devinfo));
+	}
 
-		// append us to the list
-		m_list.push_back(std::move(devinfo));
+	template <typename TActual, typename TArg>
+	TActual* create_device1(running_machine &machine, const char *name, input_module &module, TArg arg1)
+	{
+		// allocate the device object
+		auto devinfo = std::make_unique<TActual>(machine, name, module, arg1);
 
-		return (TActual*)m_list.back().get();
+		return add_device_internal(machine, name, module, std::move(devinfo));
 	}
 
 	template <class TActual>
 	TActual* at(int index)
 	{
-		return (TActual*)m_list.at(index).get();
+		return static_cast<TActual*>(m_list.at(index).get());
+	}
+
+private:
+	template <typename TActual>
+	TActual* add_device_internal(running_machine &machine, const char *name, input_module &module, std::unique_ptr<TActual> allocated)
+	{
+		// Add the device to the machine
+		allocated->m_device = machine.input().device_class(allocated->deviceclass()).add_device(allocated->name(), allocated.get());
+
+		// append us to the list
+		m_list.push_back(std::move(allocated));
+
+		return static_cast<TActual*>(m_list.back().get());
 	}
 };
 
@@ -375,7 +390,7 @@ struct key_trans_entry {
 	input_item_id   mame_key;
 
 #if !defined(OSD_WINDOWS)
-	int				sdl_scancode;
+	int             sdl_scancode;
 	int             sdl_key;
 #else
 	int             scan_code;
@@ -396,7 +411,7 @@ private:
 	static key_trans_entry              s_default_table[];
 	std::unique_ptr<key_trans_entry[]>  m_custom_table;
 
-	key_trans_entry *			        m_table;
+	key_trans_entry *                   m_table;
 	UINT32                              m_table_size;
 
 public:
@@ -405,14 +420,14 @@ public:
 
 	// getters/setters
 	UINT32 size() { return m_table_size; }
-	
+
 	// public methods
-	input_item_id lookup_mame_code(const char * scode);
-	int lookup_mame_index(const char * scode);
+	input_item_id lookup_mame_code(const char * scode) const;
+	int lookup_mame_index(const char * scode) const;
 
 #if defined(OSD_WINDOWS)
-	input_item_id map_di_scancode_to_itemid(int di_scancode);
-	int vkey_for_mame_code(input_code code);
+	input_item_id map_di_scancode_to_itemid(int di_scancode) const;
+	int vkey_for_mame_code(input_code code) const;
 #endif
 
 	static keyboard_trans_table& instance()
@@ -444,7 +459,8 @@ public:
 		m_input_enabled(FALSE),
 		m_mouse_enabled(FALSE),
 		m_lightgun_enabled(FALSE),
-		m_input_paused(FALSE)
+		m_input_paused(FALSE),
+		m_options(nullptr)
 	{
 	}
 

@@ -332,8 +332,8 @@ bool debug_comment_save(running_machine &machine)
 		if (found_comments)
 		{
 			emu_file file(machine.options().comment_directory(), OPEN_FLAG_WRITE | OPEN_FLAG_CREATE | OPEN_FLAG_CREATE_PATHS);
-			file_error filerr = file.open(machine.basename(), ".cmt");
-			if (filerr == FILERR_NONE)
+			osd_file::error filerr = file.open(machine.basename(), ".cmt");
+			if (filerr == osd_file::error::NONE)
 			{
 				xml_file_write(root, file);
 				comments_saved = true;
@@ -361,10 +361,10 @@ bool debug_comment_load(running_machine &machine)
 {
 	// open the file
 	emu_file file(machine.options().comment_directory(), OPEN_FLAG_READ);
-	file_error filerr = file.open(machine.basename(), ".cmt");
+	osd_file::error filerr = file.open(machine.basename(), ".cmt");
 
 	// if an error, just return false
-	if (filerr != FILERR_NONE)
+	if (filerr != osd_file::error::NONE)
 		return false;
 
 	// wrap in a try/catch to handle errors
@@ -1666,9 +1666,10 @@ device_debug::device_debug(device_t &device)
 
 		// add all registers into it
 		std::string tempstr;
-		for (const device_state_entry *entry = m_state->state_first(); entry != nullptr; entry = entry->next()) {
-			strmakelower(tempstr.assign(entry->symbol()));
-			m_symtable.add(tempstr.c_str(), (void *)(FPTR)entry->index(), get_state, set_state);
+		for (const device_state_entry &entry : m_state->state_entries())
+		{
+			strmakelower(tempstr.assign(entry.symbol()));
+			m_symtable.add(tempstr.c_str(), (void *)(FPTR)entry.index(), get_state, set_state);
 		}
 	}
 
@@ -3082,7 +3083,7 @@ void device_debug::hotspot_check(address_space &space, offs_t address)
 	// if we didn't find any, make a new entry
 	if (hotindex == m_hotspots.size())
 	{
-		// if the bottom of the list is over the threshhold, print it
+		// if the bottom of the list is over the threshold, print it
 		hotspot_entry &spot = m_hotspots[m_hotspots.size() - 1];
 		if (spot.m_count > m_hotspot_threshhold)
 			debug_console_printf(space.machine(), "Hotspot @ %s %08X (PC=%08X) hit %d times (fell off bottom)\n", space.name(), spot.m_access, spot.m_pc, spot.m_count);

@@ -33,6 +33,13 @@
 #include "winutil.h"
 #include "debugger.h"
 #include "winfile.h"
+#include "strconv.h"
+
+#if !WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
+using namespace Windows::ApplicationModel;
+using namespace Windows::ApplicationModel::Core;
+using namespace Windows::UI::Popups;
+#endif
 
 #define DEBUG_SLOW_LOCKS    0
 
@@ -51,6 +58,8 @@
 //**************************************************************************
 //  TYPE DEFINITIONS
 //**************************************************************************
+
+#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
 
 template<typename _FunctionPtr>
 class dynamic_bind
@@ -217,6 +226,34 @@ public:
 	}
 };
 
+#else
+
+//============================================================
+//  winuniversal_output_error
+//============================================================
+
+class winuniversal_output_error : public osd_output
+{
+public:
+	virtual void output_callback(osd_output_channel channel, const char *msg, va_list args) override
+	{
+		if (channel == OSD_OUTPUT_CHANNEL_ERROR)
+		{
+			char buffer[1024];
+			vsnprintf(buffer, ARRAY_LENGTH(buffer), msg, args);
+
+			osd_unique_wstr wcbuffer(wstring_from_utf8(buffer));
+			osd_unique_wstr wcappname(wstring_from_utf8(emulator_info::get_appname()));
+
+			auto dlg = ref new MessageDialog(ref new Platform::String(wcbuffer.get()), ref new Platform::String(wcappname.get()));
+			dlg->ShowAsync();
+		}
+		else
+			chain_output(channel, msg, args);
+	}
+};
+
+#endif
 
 
 
@@ -231,21 +268,19 @@ int _CRT_glob = 0;
 //  LOCAL VARIABLES
 //**************************************************************************
 
+#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
 static LPTOP_LEVEL_EXCEPTION_FILTER pass_thru_filter;
-
-static HANDLE watchdog_reset_event;
-static HANDLE watchdog_exit_event;
-static HANDLE watchdog_thread;
-
-static running_machine *g_current_machine;
-
-static int timeresult = !TIMERR_NOERROR;
-static TIMECAPS timecaps;
 
 static sampling_profiler *profiler = nullptr;
 static symbol_manager *symbols = nullptr;
 
 bool stack_walker::s_initialized = false;
+
+static int timeresult = !TIMERR_NOERROR;
+static TIMECAPS timecaps;
+#endif
+
+static running_machine *g_current_machine;
 
 
 //**************************************************************************
@@ -254,7 +289,6 @@ bool stack_walker::s_initialized = false;
 
 static BOOL WINAPI control_handler(DWORD type);
 static int is_double_click_start(int argc);
-static DWORD WINAPI watchdog_thread_entry(LPVOID lpParameter);
 static LONG WINAPI exception_filter(struct _EXCEPTION_POINTERS *info);
 
 
@@ -275,16 +309,11 @@ const options_entry windows_options::s_option_entries[] =
 	{ nullptr,                                        nullptr,    OPTION_HEADER,     "WINDOWS VIDEO OPTIONS" },
 	{ WINOPTION_MENU,                                 "0",        OPTION_BOOLEAN,    "enables menu bar if available by UI implementation" },
 
-	// DirectDraw-specific options
-	{ nullptr,                                        nullptr,    OPTION_HEADER,     "DIRECTDRAW-SPECIFIC OPTIONS" },
-	{ WINOPTION_HWSTRETCH ";hws",                     "1",        OPTION_BOOLEAN,    "enables hardware stretching" },
-
 	// post-processing options
 	{ nullptr,                                                  nullptr,             OPTION_HEADER,     "DIRECT3D POST-PROCESSING OPTIONS" },
-	{ WINOPTION_HLSL_ENABLE";hlsl",                             "0",                 OPTION_BOOLEAN,    "enables HLSL post-processing (PS3.0 required)" },
 	{ WINOPTION_HLSLPATH,                                       "hlsl",              OPTION_STRING,     "path to hlsl files" },
-	{ WINOPTION_HLSL_PRESCALE_X,                                "0",                 OPTION_INTEGER,    "HLSL pre-scale override factor for X (0 for auto)" },
-	{ WINOPTION_HLSL_PRESCALE_Y,                                "0",                 OPTION_INTEGER,    "HLSL pre-scale override factor for Y (0 for auto)" },
+	{ WINOPTION_HLSL_ENABLE";hlsl",                             "0",                 OPTION_BOOLEAN,    "enables HLSL post-processing (PS3.0 required)" },
+	{ WINOPTION_HLSL_OVERSAMPLING,                              "0",                 OPTION_BOOLEAN,    "enables HLSL oversampling" },
 	{ WINOPTION_HLSL_WRITE,                                     nullptr,             OPTION_STRING,     "enables HLSL AVI writing (huge disk bandwidth suggested)" },
 	{ WINOPTION_HLSL_SNAP_WIDTH,                                "2048",              OPTION_STRING,     "HLSL upscaled-snapshot width" },
 	{ WINOPTION_HLSL_SNAP_HEIGHT,                               "1536",              OPTION_STRING,     "HLSL upscaled-snapshot height" },
@@ -306,25 +335,26 @@ const options_entry windows_options::s_option_entries[] =
 	{ WINOPTION_SCANLINE_AMOUNT";fs_scanam(0.0-4.0)",           "0.0",               OPTION_FLOAT,      "overall alpha scaling value for scanlines" },
 	{ WINOPTION_SCANLINE_SCALE";fs_scansc(0.0-4.0)",            "1.0",               OPTION_FLOAT,      "overall height scaling value for scanlines" },
 	{ WINOPTION_SCANLINE_HEIGHT";fs_scanh(0.0-4.0)",            "1.0",               OPTION_FLOAT,      "individual height scaling value for scanlines" },
+	{ WINOPTION_SCANLINE_VARIATION";fs_scanv(0.0-4.0)",         "1.0",               OPTION_FLOAT,      "individual height varying value for scanlines" },
 	{ WINOPTION_SCANLINE_BRIGHT_SCALE";fs_scanbs(0.0-2.0)",     "1.0",               OPTION_FLOAT,      "overall brightness scaling value for scanlines (multiplicative)" },
 	{ WINOPTION_SCANLINE_BRIGHT_OFFSET";fs_scanbo(0.0-1.0)",    "0.0",               OPTION_FLOAT,      "overall brightness offset value for scanlines (additive)" },
 	{ WINOPTION_SCANLINE_JITTER";fs_scanjt(0.0-4.0)",           "0.0",               OPTION_FLOAT,      "overall interlace jitter scaling value for scanlines" },
 	{ WINOPTION_HUM_BAR_ALPHA";fs_humba(0.0-1.0)",              "0.0",               OPTION_FLOAT,      "overall alpha scaling value for hum bar" },
-	{ WINOPTION_DEFOCUS";fs_focus",                             "1.0,0.0",           OPTION_STRING,     "overall defocus value in screen-relative coords" },
-	{ WINOPTION_CONVERGE_X";fs_convx",                          "0.25,0.00,-0.25",   OPTION_STRING,     "convergence in screen-relative X direction" },
-	{ WINOPTION_CONVERGE_Y";fs_convy",                          "0.0,0.25,-0.25",    OPTION_STRING,     "convergence in screen-relative Y direction" },
+	{ WINOPTION_DEFOCUS";fs_focus",                             "0.0,0.0",           OPTION_STRING,     "overall defocus value in screen-relative coords" },
+	{ WINOPTION_CONVERGE_X";fs_convx",                          "0.0,0.0,0.0",       OPTION_STRING,     "convergence in screen-relative X direction" },
+	{ WINOPTION_CONVERGE_Y";fs_convy",                          "0.0,0.0,0.0",       OPTION_STRING,     "convergence in screen-relative Y direction" },
 	{ WINOPTION_RADIAL_CONVERGE_X";fs_rconvx",                  "0.0,0.0,0.0",       OPTION_STRING,     "radial convergence in screen-relative X direction" },
 	{ WINOPTION_RADIAL_CONVERGE_Y";fs_rconvy",                  "0.0,0.0,0.0",       OPTION_STRING,     "radial convergence in screen-relative Y direction" },
 	/* RGB colorspace convolution below this line */
 	{ WINOPTION_RED_RATIO";fs_redratio",                        "1.0,0.0,0.0",       OPTION_STRING,     "red output signal generated by input signal" },
 	{ WINOPTION_GRN_RATIO";fs_grnratio",                        "0.0,1.0,0.0",       OPTION_STRING,     "green output signal generated by input signal" },
 	{ WINOPTION_BLU_RATIO";fs_bluratio",                        "0.0,0.0,1.0",       OPTION_STRING,     "blue output signal generated by input signal" },
-	{ WINOPTION_SATURATION";fs_sat(0.0-4.0)",                   "1.4",               OPTION_FLOAT,      "saturation scaling value" },
+	{ WINOPTION_SATURATION";fs_sat(0.0-4.0)",                   "1.0",               OPTION_FLOAT,      "saturation scaling value" },
 	{ WINOPTION_OFFSET";fs_offset",                             "0.0,0.0,0.0",       OPTION_STRING,     "signal offset value (additive)" },
-	{ WINOPTION_SCALE";fs_scale",                               "0.95,0.95,0.95",    OPTION_STRING,     "signal scaling value (multiplicative)" },
-	{ WINOPTION_POWER";fs_power",                               "0.8,0.8,0.8",       OPTION_STRING,     "signal power value (exponential)" },
-	{ WINOPTION_FLOOR";fs_floor",                               "0.05,0.05,0.05",    OPTION_STRING,     "signal floor level" },
-	{ WINOPTION_PHOSPHOR";fs_phosphor",                         "0.4,0.4,0.4",       OPTION_STRING,     "phosphorescence decay rate (0.0 is instant, 1.0 is forever)" },
+	{ WINOPTION_SCALE";fs_scale",                               "1.0,1.0,1.0",       OPTION_STRING,     "signal scaling value (multiplicative)" },
+	{ WINOPTION_POWER";fs_power",                               "1.0,1.0,1.0",       OPTION_STRING,     "signal power value (exponential)" },
+	{ WINOPTION_FLOOR";fs_floor",                               "0.0,0.0,0.0",       OPTION_STRING,     "signal floor level" },
+	{ WINOPTION_PHOSPHOR";fs_phosphor",                         "0.0,0.0,0.0",       OPTION_STRING,     "phosphorescence decay rate (0.0 is instant, 1.0 is forever)" },
 	/* NTSC simulation below this line */
 	{ nullptr,                                                  nullptr,             OPTION_HEADER,     "NTSC POST-PROCESSING OPTIONS" },
 	{ WINOPTION_YIQ_ENABLE";yiq",                               "0",                 OPTION_BOOLEAN,    "enables YIQ-space HLSL post-processing" },
@@ -346,20 +376,18 @@ const options_entry windows_options::s_option_entries[] =
 	{ WINOPTION_VECTOR_LENGTH_RATIO";vecsize",                  "500.0",             OPTION_FLOAT,      "Vector fade length (4.0 - vectors fade the most at and above 4 pixels, etc.)" },
 	/* Bloom below this line */
 	{ nullptr,                                                  nullptr,             OPTION_HEADER,     "BLOOM POST-PROCESSING OPTIONS" },
-	{ WINOPTION_BLOOM_BLEND_MODE,                               "0",                 OPTION_INTEGER,    "bloom blend mode (0 for addition, 1 for darken)" },
-	{ WINOPTION_BLOOM_SCALE,                                    "0.25",              OPTION_FLOAT,      "Intensity factor for bloom" },
+	{ WINOPTION_BLOOM_BLEND_MODE,                               "0",                 OPTION_INTEGER,    "bloom blend mode (0 for brighten, 1 for darken)" },
+	{ WINOPTION_BLOOM_SCALE,                                    "0.0",               OPTION_FLOAT,      "Intensity factor for bloom" },
 	{ WINOPTION_BLOOM_OVERDRIVE,                                "1.0,1.0,1.0",       OPTION_STRING,     "Overdrive factor for bloom" },
 	{ WINOPTION_BLOOM_LEVEL0_WEIGHT,                            "1.0",               OPTION_FLOAT,      "Bloom level 0  (full-size target) weight" },
-	{ WINOPTION_BLOOM_LEVEL1_WEIGHT,                            "0.64",              OPTION_FLOAT,      "Bloom level 1  (half-size target) weight" },
-	{ WINOPTION_BLOOM_LEVEL2_WEIGHT,                            "0.32",              OPTION_FLOAT,      "Bloom level 2  (quarter-size target) weight" },
-	{ WINOPTION_BLOOM_LEVEL3_WEIGHT,                            "0.16",              OPTION_FLOAT,      "Bloom level 3  (.) weight" },
-	{ WINOPTION_BLOOM_LEVEL4_WEIGHT,                            "0.08",              OPTION_FLOAT,      "Bloom level 4  (.) weight" },
-	{ WINOPTION_BLOOM_LEVEL5_WEIGHT,                            "0.04",              OPTION_FLOAT,      "Bloom level 5  (.) weight" },
-	{ WINOPTION_BLOOM_LEVEL6_WEIGHT,                            "0.04",              OPTION_FLOAT,      "Bloom level 6  (.) weight" },
-	{ WINOPTION_BLOOM_LEVEL7_WEIGHT,                            "0.02",              OPTION_FLOAT,      "Bloom level 7  (.) weight" },
-	{ WINOPTION_BLOOM_LEVEL8_WEIGHT,                            "0.02",              OPTION_FLOAT,      "Bloom level 8  (.) weight" },
-	{ WINOPTION_BLOOM_LEVEL9_WEIGHT,                            "0.01",              OPTION_FLOAT,      "Bloom level 9  (.) weight" },
-	{ WINOPTION_BLOOM_LEVEL10_WEIGHT,                           "0.01",              OPTION_FLOAT,      "Bloom level 10 (1x1 target) weight" },
+	{ WINOPTION_BLOOM_LEVEL1_WEIGHT,                            "0.64",              OPTION_FLOAT,      "Bloom level 1  (1/2-size target) weight" },
+	{ WINOPTION_BLOOM_LEVEL2_WEIGHT,                            "0.32",              OPTION_FLOAT,      "Bloom level 2  (1/4-size target) weight" },
+	{ WINOPTION_BLOOM_LEVEL3_WEIGHT,                            "0.16",              OPTION_FLOAT,      "Bloom level 3  (1/8-size target) weight" },
+	{ WINOPTION_BLOOM_LEVEL4_WEIGHT,                            "0.08",              OPTION_FLOAT,      "Bloom level 4  (1/16-size target) weight" },
+	{ WINOPTION_BLOOM_LEVEL5_WEIGHT,                            "0.06",              OPTION_FLOAT,      "Bloom level 5  (1/32-size target) weight" },
+	{ WINOPTION_BLOOM_LEVEL6_WEIGHT,                            "0.04",              OPTION_FLOAT,      "Bloom level 6  (1/64-size target) weight" },
+	{ WINOPTION_BLOOM_LEVEL7_WEIGHT,                            "0.02",              OPTION_FLOAT,      "Bloom level 7  (1/128-size target) weight" },
+	{ WINOPTION_BLOOM_LEVEL8_WEIGHT,                            "0.01",              OPTION_FLOAT,      "Bloom level 8  (1/256-size target) weight" },
 
 	// full screen options
 	{ nullptr,                                        nullptr,    OPTION_HEADER,     "FULL SCREEN OPTIONS" },
@@ -380,6 +408,7 @@ const options_entry windows_options::s_option_entries[] =
 //  MAIN ENTRY POINT
 //**************************************************************************
 
+#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
 
 //============================================================
 //  utf8_main
@@ -438,18 +467,6 @@ int main(int argc, char *argv[])
 	return result;
 }
 
-
-//============================================================
-//  windows_options
-//============================================================
-
-windows_options::windows_options()
-: osd_options()
-{
-	add_entries(s_option_entries);
-}
-
-
 //============================================================
 //  control_handler
 //============================================================
@@ -459,12 +476,12 @@ static BOOL WINAPI control_handler(DWORD type)
 	// indicate to the user that we detected something
 	switch (type)
 	{
-		case CTRL_C_EVENT:          fprintf(stderr, "Caught Ctrl+C");                   break;
-		case CTRL_BREAK_EVENT:      fprintf(stderr, "Caught Ctrl+break");               break;
-		case CTRL_CLOSE_EVENT:      fprintf(stderr, "Caught console close");            break;
-		case CTRL_LOGOFF_EVENT:     fprintf(stderr, "Caught logoff");                   break;
-		case CTRL_SHUTDOWN_EVENT:   fprintf(stderr, "Caught shutdown");                 break;
-		default:                    fprintf(stderr, "Caught unexpected console event"); break;
+	case CTRL_C_EVENT:          fprintf(stderr, "Caught Ctrl+C");                   break;
+	case CTRL_BREAK_EVENT:      fprintf(stderr, "Caught Ctrl+break");               break;
+	case CTRL_CLOSE_EVENT:      fprintf(stderr, "Caught console close");            break;
+	case CTRL_LOGOFF_EVENT:     fprintf(stderr, "Caught logoff");                   break;
+	case CTRL_SHUTDOWN_EVENT:   fprintf(stderr, "Caught shutdown");                 break;
+	default:                    fprintf(stderr, "Caught unexpected console event"); break;
 	}
 
 	// if we don't have a machine yet, or if we are handling ctrl+c/ctrl+break,
@@ -486,7 +503,82 @@ static BOOL WINAPI control_handler(DWORD type)
 	return TRUE;
 }
 
+#else
 
+MameMainApp::MameMainApp()
+{
+}
+
+void MameMainApp::Initialize(Windows::ApplicationModel::Core::CoreApplicationView^ applicationView)
+{
+	// Register event handlers for app lifecycle.
+}
+
+// Called when the CoreWindow object is created (or re-created).
+void MameMainApp::SetWindow(Windows::UI::Core::CoreWindow^ window)
+{
+	// Attach event handlers on the window for input, etc.
+}
+
+// Initializes scene resources, or loads a previously saved app state.
+void MameMainApp::Load(Platform::String^ entryPoint)
+{
+}
+
+void MameMainApp::Run()
+{
+	// use small output buffers on non-TTYs (i.e. pipes)
+	if (!isatty(fileno(stdout)))
+		setvbuf(stdout, (char *) nullptr, _IOFBF, 64);
+	if (!isatty(fileno(stderr)))
+		setvbuf(stderr, (char *) nullptr, _IOFBF, 64);
+
+	// parse config and cmdline options
+	m_options = std::make_unique<windows_options>();
+	m_osd = std::make_unique<windows_osd_interface>(m_options);
+
+	// Since we're a GUI app, out errors to message boxes
+	// Initialize this after the osd interface so that we are first in the
+	// output order
+	winuniversal_output_error winerror;
+	osd_output::push(&winerror);
+
+	m_osd->register_options();
+	m_frontend = std::make_unique<cli_frontend>(*m_options.get(), *m_osd.get());
+
+	// To satisfy the latter things, pass in the module path name
+	char exe_path[MAX_PATH];
+	GetModuleFileNameA(NULL, exe_path, MAX_PATH);
+	char* args[2] = { exe_path, (char*)"-verbose" };
+
+	DWORD result = m_frontend->execute(ARRAY_LENGTH(args), args);
+	osd_output::pop(&winerror);
+}
+
+// Required for IFrameworkView.
+void MameMainApp::Uninitialize()
+{
+	// Terminate events do not cause Uninitialize to be called. It will be called if your IFrameworkView 
+	// class is torn down while the app is in the foreground. 
+}
+
+IFrameworkView^ MameViewSource::CreateView()
+{
+	return ref new MameMainApp();
+}
+
+#endif
+
+
+//============================================================
+//  windows_options
+//============================================================
+
+windows_options::windows_options()
+: osd_options()
+{
+	add_entries(s_option_entries);
+}
 
 
 //============================================================
@@ -507,7 +599,6 @@ static void output_oslog(const running_machine &machine, const char *buffer)
 windows_osd_interface::windows_osd_interface(windows_options &options)
 	: osd_common_t(options)
 	, m_options(options)
-	, m_sliders(nullptr)
 {
 }
 
@@ -562,7 +653,6 @@ void windows_osd_interface::init(running_machine &machine)
 	if (profile > 0)
 	{
 		options.set_value(OPTION_THROTTLE, false, OPTION_PRIORITY_MAXIMUM, error_string);
-		options.set_value(OSDOPTION_MULTITHREADING, false, OPTION_PRIORITY_MAXIMUM, error_string);
 		options.set_value(OSDOPTION_NUMPROCESSORS, 1, OPTION_PRIORITY_MAXIMUM, error_string);
 		assert(error_string.empty());
 	}
@@ -599,30 +689,23 @@ void windows_osd_interface::init(running_machine &machine)
 	if (options.oslog())
 		machine.add_logerror_callback(output_oslog);
 
+#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
 	// crank up the multimedia timer resolution to its max
 	// this gives the system much finer timeslices
 	timeresult = timeGetDevCaps(&timecaps, sizeof(timecaps));
 	if (timeresult == TIMERR_NOERROR)
 		timeBeginPeriod(timecaps.wPeriodMin);
+#endif
 
-	// if a watchdog thread is requested, create one
-	int watchdog = options.watchdog();
-	if (watchdog != 0)
-	{
-		watchdog_reset_event = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-		assert_always(watchdog_reset_event != nullptr, "Failed to create watchdog reset event");
-		watchdog_exit_event = CreateEvent(nullptr, TRUE, FALSE, nullptr);
-		assert_always(watchdog_exit_event != nullptr, "Failed to create watchdog exit event");
-		watchdog_thread = CreateThread(nullptr, 0, watchdog_thread_entry, (LPVOID)(FPTR)watchdog, 0, nullptr);
-		assert_always(watchdog_thread != nullptr, "Failed to create watchdog thread");
-	}
 
 	// create and start the profiler
+#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
 	if (profile > 0)
 	{
 		profiler = global_alloc(sampling_profiler(1000, profile - 1));
 		profiler->start();
 	}
+#endif
 
 	// initialize sockets
 	win_init_sockets();
@@ -646,19 +729,8 @@ void windows_osd_interface::osd_exit()
 
 	osd_common_t::osd_exit();
 
-	// take down the watchdog thread if it exists
-	if (watchdog_thread != nullptr)
-	{
-		SetEvent(watchdog_exit_event);
-		WaitForSingleObject(watchdog_thread, INFINITE);
-		CloseHandle(watchdog_reset_event);
-		CloseHandle(watchdog_exit_event);
-		CloseHandle(watchdog_thread);
-		watchdog_reset_event = nullptr;
-		watchdog_exit_event = nullptr;
-		watchdog_thread = nullptr;
-	}
 
+#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
 	// stop the profiler
 	if (profiler != nullptr)
 	{
@@ -670,10 +742,15 @@ void windows_osd_interface::osd_exit()
 	// restore the timer resolution
 	if (timeresult == TIMERR_NOERROR)
 		timeEndPeriod(timecaps.wPeriodMin);
+#endif
 
 	// one last pass at events
 	winwindow_process_events(machine(), 0, 0);
 }
+
+
+
+#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
 
 //============================================================
 //  winmain_dump_stack
@@ -706,57 +783,6 @@ static int is_double_click_start(int argc)
 	// try to determine if MAME was simply double-clicked
 	return (argc <= 1 && startup_info.dwFlags && !(startup_info.dwFlags & STARTF_USESTDHANDLES));
 }
-
-
-//============================================================
-//  watchdog_thread_entry
-//============================================================
-
-static DWORD WINAPI watchdog_thread_entry(LPVOID lpParameter)
-{
-	DWORD timeout = (int)(FPTR)lpParameter * 1000;
-
-	while (TRUE)
-	{
-		HANDLE handle_list[2];
-		DWORD wait_result;
-
-		// wait for either a reset or an exit, or a timeout
-		handle_list[0] = watchdog_reset_event;
-		handle_list[1] = watchdog_exit_event;
-		wait_result = WaitForMultipleObjects(2, handle_list, FALSE, timeout);
-
-		// on a reset, just loop around and re-wait
-		if (wait_result == WAIT_OBJECT_0 + 0)
-			continue;
-
-		// on an exit, break out
-		if (wait_result == WAIT_OBJECT_0 + 1)
-			break;
-
-		// on a timeout, kill the process
-		if (wait_result == WAIT_TIMEOUT)
-		{
-			fprintf(stderr, "Terminating due to watchdog timeout\n");
-			fflush(stderr);
-			TerminateProcess(GetCurrentProcess(), -1);
-		}
-	}
-	return EXCEPTION_CONTINUE_SEARCH;
-}
-
-
-//============================================================
-//  winmain_watchdog_ping
-//============================================================
-
-void winmain_watchdog_ping(void)
-{
-	// if we have a watchdog, reset it
-	if (watchdog_reset_event != nullptr)
-		SetEvent(watchdog_reset_event);
-}
-
 
 //============================================================
 //  exception_filter
@@ -1056,7 +1082,7 @@ const char *symbol_manager::symbol_for_address(FPTR address)
 	if (!query_system_for_address(address))
 	{
 		// if that fails, scan the cache if we have one
-		if (m_cache.first() != nullptr)
+		if (!m_cache.empty())
 			scan_cache_for_address(address);
 
 		// or else try to open a sym/map file and find it there
@@ -1179,13 +1205,13 @@ void symbol_manager::scan_cache_for_address(FPTR address)
 	FPTR best_addr = 0;
 
 	// walk the cache, looking for valid entries
-	for (cache_entry *entry = m_cache.first(); entry != nullptr; entry = entry->next())
+	for (cache_entry &entry : m_cache)
 
 		// if this is the best one so far, remember it
-		if (entry->m_address <= address && entry->m_address > best_addr)
+		if (entry.m_address <= address && entry.m_address > best_addr)
 		{
-			best_addr = entry->m_address;
-			best_symbol = entry->m_name;
+			best_addr = entry.m_address;
+			best_symbol = entry.m_name;
 		}
 
 	// format the symbol and remember the last base
@@ -1566,3 +1592,5 @@ void sampling_profiler::thread_run()
 		Sleep(1);
 	}
 }
+
+#endif

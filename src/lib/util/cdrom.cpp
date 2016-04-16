@@ -115,7 +115,7 @@ struct cdrom_file
 	/** @brief  Information describing the track. */
 	chdcd_track_input_info track_info;      /* track info */
 	/** @brief  The fhandle[ CD maximum tracks]. */
-	core_file *         fhandle[CD_MAX_TRACKS];/* file handle */
+	util::core_file::ptr fhandle[CD_MAX_TRACKS];/* file handle */
 };
 
 
@@ -224,7 +224,7 @@ cdrom_file *cdrom_open(const char *inputfile)
 	UINT32 physofs, logofs;
 
 	/* allocate memory for the CD-ROM file */
-	file = new cdrom_file();
+	file = new (std::nothrow) cdrom_file();
 	if (file == nullptr)
 		return nullptr;
 
@@ -244,8 +244,8 @@ cdrom_file *cdrom_open(const char *inputfile)
 
 	for (i = 0; i < file->cdtoc.numtrks; i++)
 	{
-		file_error filerr = core_fopen(file->track_info.track[i].fname.c_str(), OPEN_FLAG_READ, &file->fhandle[i]);
-		if (filerr != FILERR_NONE)
+		osd_file::error filerr = util::core_file::open(file->track_info.track[i].fname, OPEN_FLAG_READ, file->fhandle[i]);
+		if (filerr != osd_file::error::NONE)
 		{
 			fprintf(stderr, "Unable to open file: %s\n", file->track_info.track[i].fname.c_str());
 			cdrom_close(file);
@@ -331,7 +331,7 @@ cdrom_file *cdrom_open(chd_file *chd)
 		return nullptr;
 
 	/* allocate memory for the CD-ROM file */
-	file = new cdrom_file();
+	file = new (std::nothrow) cdrom_file();
 	if (file == nullptr)
 		return nullptr;
 
@@ -418,7 +418,7 @@ void cdrom_close(cdrom_file *file)
 	{
 		for (int i = 0; i < file->cdtoc.numtrks; i++)
 		{
-			core_fclose(file->fhandle[i]);
+			file->fhandle[i].reset();
 		}
 	}
 
@@ -474,7 +474,7 @@ chd_error read_partial_sector(cdrom_file *file, void *dest, UINT32 lbasector, UI
 	else
 	{
 		// else read from the appropriate file
-		core_file *srcfile = file->fhandle[tracknum];
+		util::core_file &srcfile = *file->fhandle[tracknum];
 
 		UINT64 sourcefileoffset = file->track_info.track[tracknum].offset;
 		int bytespersector = file->cdtoc.tracks[tracknum].datasize + file->cdtoc.tracks[tracknum].subsize;
@@ -483,8 +483,8 @@ chd_error read_partial_sector(cdrom_file *file, void *dest, UINT32 lbasector, UI
 
 		//  printf("Reading sector %d from track %d at offset %lld\n", chdsector, tracknum, sourcefileoffset);
 
-		core_fseek(srcfile, sourcefileoffset, SEEK_SET);
-		core_fread(srcfile, dest, length);
+		srcfile.seek(sourcefileoffset, SEEK_SET);
+		srcfile.read(dest, length);
 
 		needswap = file->track_info.track[tracknum].swap;
 	}
@@ -1222,7 +1222,7 @@ chd_error cdrom_parse_metadata(chd_file *chd, cdrom_toc *toc)
 	if (toc->numtrks > 0)
 		return CHDERR_NONE;
 
-	printf("toc->numtrks = %d?!\n", toc->numtrks);
+	printf("toc->numtrks = %u?!\n", toc->numtrks);
 
 	/* look for old-style metadata */
 	dynamic_buffer oldmetadata;
