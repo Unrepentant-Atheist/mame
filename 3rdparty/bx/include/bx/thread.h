@@ -8,6 +8,9 @@
 
 #if BX_PLATFORM_POSIX
 #	include <pthread.h>
+#	if BX_PLATFORM_BSD
+#		include <pthread_np.h>
+#	endif
 #	if defined(__GLIBC__) && !( (__GLIBC__ > 2) || ( (__GLIBC__ == 2) && (__GLIBC_MINOR__ >= 12) ) )
 #		include <sys/prctl.h>
 #	endif // defined(__GLIBC__) ...
@@ -65,7 +68,7 @@ namespace bx
 			m_stackSize = _stackSize;
 			m_running = true;
 
-#if BX_PLATFORM_WINDOWS || BX_PLATFORM_XBOX360
+#if BX_PLATFORM_WINDOWS || BX_PLATFORM_XBOX360 || BX_PLATFORM_XBOXONE
 			m_handle = ::CreateThread(NULL
 				, m_stackSize
 				, (LPTHREAD_START_ROUTINE)threadFunc
@@ -103,6 +106,8 @@ namespace bx
 
 			result = pthread_create(&m_handle, &attr, &threadFunc, this);
 			BX_CHECK(0 == result, "pthread_attr_setschedparam failed! %d", result);
+#else
+#	error "Not implemented!"
 #endif // BX_PLATFORM_
 
 			m_sem.wait();
@@ -159,7 +164,11 @@ namespace bx
 			prctl(PR_SET_NAME,_name, 0, 0, 0);
 #	endif // defined(__GLIBC__) ...
 #elif BX_PLATFORM_BSD
-			pthread_setname_np(m_handle, _name);
+#ifdef __NetBSD__
+			pthread_setname_np(m_handle, "%s", (void *)_name);
+#else
+			pthread_set_name_np(m_handle, _name);
+#endif
 #elif BX_PLATFORM_WINDOWS && BX_COMPILER_MSVC
 #	pragma pack(push, 8)
 			struct ThreadName

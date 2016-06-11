@@ -10,9 +10,9 @@
 #define __OSDWINDOW__
 
 #include "emu.h"
-#include "ui/ui.h"
-#include "ui/menu.h"
+#include "render.h"
 #include "osdhelper.h"
+#include "../frontend/mame/ui/menuitem.h"
 
 // standard windows headers
 #ifdef OSD_WINDOWS
@@ -53,7 +53,7 @@ class osd_monitor_info
 {
 public:
 	osd_monitor_info(void *handle, const char *monitor_device, float aspect)
-	: m_next(NULL), m_handle(handle), m_aspect(aspect)
+	: m_next(nullptr), m_is_primary(false), m_handle(handle), m_aspect(aspect)
 	{
 		strncpy(m_name, monitor_device, ARRAY_LENGTH(m_name) - 1);
 	}
@@ -62,21 +62,21 @@ public:
 
 	virtual void refresh() = 0;
 
-	const void *oshandle() { return m_handle; }
+	const void *oshandle() const { return m_handle; }
 
-	const osd_rect &position_size() { return m_pos_size; }
-	const osd_rect &usuable_position_size() { return m_usuable_pos_size; }
+	const osd_rect &position_size() const { return m_pos_size; }
+	const osd_rect &usuable_position_size() const { return m_usuable_pos_size; }
 
 	const char *devicename() { return m_name[0] ? m_name : "UNKNOWN"; }
 
-	float aspect() { return m_aspect; }
-	float pixel_aspect() { return m_aspect / ((float)m_pos_size.width() / (float)m_pos_size.height()); }
+	float aspect() const { return m_aspect; }
+	float pixel_aspect() const { return m_aspect / ((float)m_pos_size.width() / (float)m_pos_size.height()); }
 
-	void update_resolution(const int new_width, const int new_height) { m_pos_size.resize(new_width, new_height); }
+	void update_resolution(const int new_width, const int new_height) const { m_pos_size.resize(new_width, new_height); }
 	void set_aspect(const float a) { m_aspect = a; }
-	bool is_primary() { return m_is_primary; }
+	bool is_primary() const { return m_is_primary; }
 
-	osd_monitor_info    * next() { return m_next; }   // pointer to next monitor in list
+	osd_monitor_info    * next() const { return m_next; }   // pointer to next monitor in list
 
 	static osd_monitor_info *pick_monitor(osd_options &options, int index);
 	static osd_monitor_info *list;
@@ -106,24 +106,36 @@ public:
 	int                 refresh;                    // decoded refresh
 };
 
-class osd_window
+class osd_renderer;
+
+class osd_window : public std::enable_shared_from_this<osd_window>
 {
 public:
-	osd_window()
+	osd_window(const osd_window_config &config)
 	:
 #ifndef OSD_SDL
-		m_hwnd(0), m_dc(0), m_focus_hwnd(0), m_resize_state(0),
+		m_dc(nullptr), m_resize_state(0),
 #endif
 		m_primlist(nullptr),
+		m_win_config(config),
 		m_index(0),
-		m_main(nullptr),
-		m_prescale(1)
+		m_prescale(1),
+		m_platform_window(nullptr),
+		m_renderer(nullptr),
+		m_main(nullptr)
 		{}
-	virtual ~osd_window() { }
+
+	virtual ~osd_window();
 
 	virtual render_target *target() = 0;
 	virtual int fullscreen() const = 0;
 	virtual running_machine &machine() const = 0;
+
+	osd_renderer &renderer() const { return *m_renderer; }
+	void set_renderer(std::unique_ptr<osd_renderer> renderer)
+	{
+		m_renderer = std::move(renderer);
+	}
 
 	int prescale() const { return m_prescale; };
 
@@ -142,19 +154,34 @@ public:
 
 	virtual osd_monitor_info *monitor() const = 0;
 
-#ifdef OSD_SDL
-	virtual SDL_Window *sdl_window() = 0;
-#else
+	template <class TWindow>
+	TWindow platform_window() const { return static_cast<TWindow>(m_platform_window); }
+
+	void set_platform_window(void *window)
+	{
+		assert(window == nullptr || m_platform_window == nullptr);
+		m_platform_window = window;
+	}
+
+	std::shared_ptr<osd_window> main_window() const { return m_main;    }
+	void set_main_window(std::shared_ptr<osd_window> main) { m_main = main; }
+
+	// Clips the pointer to the bounds of this window
+	virtual void capture_pointer() = 0;
+
+	// Releases the pointer from a previously captured state
+	virtual void release_pointer() = 0;
+
+	virtual void show_pointer() = 0;
+	virtual void hide_pointer() = 0;
+
+	void renderer_reset() { m_renderer.reset(); }
+#ifndef OSD_SDL
 	virtual bool win_has_menu() = 0;
-	// FIXME: cann we replace winwindow_video_window_monitor(NULL) with monitor() ?
+	// FIXME: cann we replace winwindow_video_window_monitor(nullptr) with monitor() ?
 	virtual osd_monitor_info *winwindow_video_window_monitor(const osd_rect *proposed) = 0;
 
-	// window handle and info
-	HWND                    m_hwnd;
 	HDC                     m_dc;       // only used by GDI renderer!
-	// FIXME: this is the same as win_window_list->m_hwnd, i.e. first window.
-	// During modularization, this should be passed in differently
-	HWND                    m_focus_hwnd;
 
 	int                     m_resize_state;
 #endif
@@ -162,9 +189,12 @@ public:
 	render_primitive_list   *m_primlist;
 	osd_window_config       m_win_config;
 	int                     m_index;
-	osd_window              *m_main;
 protected:
 	int                     m_prescale;
+private:
+	void                           *m_platform_window;
+	std::unique_ptr<osd_renderer>  m_renderer;
+	std::shared_ptr<osd_window>    m_main;
 };
 
 class osd_renderer
@@ -180,13 +210,24 @@ public:
 	static const int FLAG_NEEDS_DOUBLEBUF       = 0x0100;
 	static const int FLAG_NEEDS_ASYNCBLIT       = 0x0200;
 
-	osd_renderer(osd_window *window, const int flags)
+	osd_renderer(std::shared_ptr<osd_window> window, const int flags)
 	: m_sliders_dirty(false), m_window(window), m_flags(flags) { }
 
 	virtual ~osd_renderer() { }
 
-	osd_window &window() { return *m_window; }
-	bool has_flags(const int flag) { return ((m_flags & flag)) == flag; }
+	std::shared_ptr<osd_window> assert_window() const
+	{
+		auto win = m_window.lock();
+		assert_always(win != nullptr, "Window weak_ptr is not available!");
+		return win;
+	}
+
+	std::shared_ptr<osd_window> try_getwindow() const
+	{
+		return m_window.lock();
+	}
+
+	bool has_flags(const int flag) const { return ((m_flags & flag)) == flag; }
 	void set_flags(int aflag) { m_flags |= aflag; }
 	void clear_flags(int aflag) { m_flags &= ~aflag; }
 
@@ -197,7 +238,8 @@ public:
 	virtual int create() = 0;
 	virtual render_primitive_list *get_primitives() = 0;
 
-	virtual std::vector<ui_menu_item> get_slider_list() { return m_sliders; }
+	virtual void add_audio_to_recording(const INT16 *buffer, int samples_this_frame) { }
+	virtual std::vector<ui::menu_item> get_slider_list() { return m_sliders; }
 	virtual int draw(const int update) = 0;
 	virtual int xy_to_render_target(const int x, const int y, int *xt, int *yt) { return 0; };
 	virtual void save() { };
@@ -205,18 +247,18 @@ public:
 	virtual void toggle_fsfx() { };
 	virtual bool sliders_dirty() { return m_sliders_dirty; }
 
-	static osd_renderer* make_for_type(int mode, osd_window *window, int extra_flags = FLAG_NONE);
+	static std::unique_ptr<osd_renderer> make_for_type(int mode, std::shared_ptr<osd_window> window, int extra_flags = FLAG_NONE);
 
 protected:
 	virtual void build_slider_list() { }
 
 	/* Internal flags */
 	static const int FI_CHANGED                 = 0x010000;
-	bool        				m_sliders_dirty;
-	std::vector<ui_menu_item>	m_sliders;
+	bool                        m_sliders_dirty;
+	std::vector<ui::menu_item>   m_sliders;
 
 private:
-	osd_window  *m_window;
+	std::weak_ptr<osd_window>  m_window;
 	int         m_flags;
 };
 

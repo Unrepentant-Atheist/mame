@@ -140,26 +140,48 @@ const char *software_part::feature(const char *feature_name) const
 //  with the given software_list_device
 //-------------------------------------------------
 
-bool software_part::is_compatible(const software_list_device &swlistdev) const
+software_compatibility software_part::is_compatible(const software_list_device &swlistdev) const
 {
-	// get the compatibility feature and the softlist filter; if either is NULL, assume compatible
-	const char *compatibility = feature("compatibility");
+	// get the softlist filter; if null, assume compatible
 	const char *filter = swlistdev.filter();
-	if (compatibility == nullptr || filter == nullptr)
-		return true;
+	if (filter == nullptr)
+		return SOFTWARE_IS_COMPATIBLE;
 
-	// copy the comma-delimited strings and ensure they end with a final comma
-	std::string comp = std::string(compatibility).append(",");
+	// copy the comma-delimited string and ensure it ends with a final comma
 	std::string filt = std::string(filter).append(",");
 
-	// iterate over filter items and see if they exist in the compatibility list; if so, return true
+	// get the incompatibility filter and test against it first if it exists
+	const char *incompatibility = feature("incompatibility");
+	if (incompatibility != nullptr)
+	{
+		// copy the comma-delimited string and ensure it ends with a final comma
+		std::string incomp = std::string(incompatibility).append(",");
+
+		// iterate over filter items and see if they exist in the list; if so, it's incompatible
+		for (int start = 0, end = filt.find_first_of(',',start); end != -1; start = end + 1, end = filt.find_first_of(',', start))
+		{
+			std::string token(filt, start, end - start + 1);
+			if (incomp.find(token) != -1)
+				return SOFTWARE_IS_INCOMPATIBLE;
+		}
+	}
+
+	// get the compatibility feature; if null, assume compatible
+	const char *compatibility = feature("compatibility");
+	if (compatibility == nullptr)
+		return SOFTWARE_IS_COMPATIBLE;
+
+	// copy the comma-delimited string and ensure it ends with a final comma
+	std::string comp = std::string(compatibility).append(",");
+
+	// iterate over filter items and see if they exist in the compatibility list; if so, it's compatible
 	for (int start = 0, end = filt.find_first_of(',',start); end != -1; start = end + 1, end = filt.find_first_of(',', start))
 	{
 		std::string token(filt, start, end - start + 1);
 		if (comp.find(token) != -1)
-			return true;
+			return SOFTWARE_IS_COMPATIBLE;
 	}
-	return false;
+	return SOFTWARE_NOT_COMPATIBLE;
 }
 
 
@@ -180,6 +202,34 @@ bool software_part::matches_interface(const char *interface_list) const
 	// then add a comma to the end of our interface and return true if we find it in the list string
 	std::string our_interface = std::string(m_interface).append(",");
 	return (interfaces.find(our_interface) != -1);
+}
+
+
+//-------------------------------------------------
+//  find_mountable_image - find an image interface
+//  that can automatically mount this software part
+//-------------------------------------------------
+
+device_image_interface *software_part::find_mountable_image(const machine_config &mconfig) const
+{
+	// if automount="no", don't bother
+	const char *mount = feature("automount");
+	if (mount != nullptr && strcmp(mount, "no") == 0)
+		return nullptr;
+
+	for (device_image_interface &image : image_interface_iterator(mconfig.root_device()))
+	{
+		const char *interface = image.image_interface();
+		if (interface != nullptr && matches_interface(interface))
+		{
+			// mount only if not already mounted
+			const char *option = mconfig.options().value(image.brief_instance_name());
+			if (*option == '\0' && !image.filename())
+
+				return &image;
+		}
+	}
+	return nullptr;
 }
 
 
@@ -340,7 +390,7 @@ void software_list_device::find_approx_matches(const char *name, int matches, so
 	for (software_info &swinfo : get_info())
 	{
 		software_part *part = swinfo.first_part();
-		if ((interface == nullptr || part->matches_interface(interface)) && part->is_compatible(*this))
+		if ((interface == nullptr || part->matches_interface(interface)) && part->is_compatible(*this) == SOFTWARE_IS_COMPATIBLE)
 		{
 			// pick the best match between driver name and description
 			int longpenalty = driver_list::penalty_compare(name, swinfo.longname());
@@ -391,10 +441,9 @@ void software_list_device::release()
 software_list_device *software_list_device::find_by_name(const machine_config &config, const char *name)
 {
 	// iterate over each device in the system and find a match
-	software_list_device_iterator deviter(config.root_device());
-	for (software_list_device *swlistdev = deviter.first(); swlistdev != nullptr; swlistdev = deviter.next())
-		if (strcmp(swlistdev->list_name(), name) == 0)
-			return swlistdev;
+	for (software_list_device &swlistdev : software_list_device_iterator(config.root_device()))
+		if (strcmp(swlistdev.list_name(), name) == 0)
+			return &swlistdev;
 	return nullptr;
 }
 
@@ -409,25 +458,25 @@ void software_list_device::display_matches(const machine_config &config, const c
 {
 	// check if there is at least one software list
 	software_list_device_iterator deviter(config.root_device());
-	if (deviter.first())
+	if (deviter.first() != nullptr)
 		osd_printf_error("\n\"%s\" approximately matches the following\n"
 							"supported software items (best match first):\n\n", name);
 
 	// iterate through lists
-	for (software_list_device *swlistdev = deviter.first(); swlistdev != nullptr; swlistdev = deviter.next())
+	for (software_list_device &swlistdev : deviter)
 	{
 		// get the top 16 approximate matches for the selected device interface (i.e. only carts for cartslot, etc.)
 		software_info *matches[16] = { nullptr };
-		swlistdev->find_approx_matches(name, ARRAY_LENGTH(matches), matches, interface);
+		swlistdev.find_approx_matches(name, ARRAY_LENGTH(matches), matches, interface);
 
 		// if we found some, print them
 		if (matches[0] != nullptr)
 		{
 			// different output depending on original system or compatible
-			if (swlistdev->list_type() == SOFTWARE_LIST_ORIGINAL_SYSTEM)
-				osd_printf_error("* Software list \"%s\" (%s) matches: \n", swlistdev->list_name(), swlistdev->description());
+			if (swlistdev.list_type() == SOFTWARE_LIST_ORIGINAL_SYSTEM)
+				osd_printf_error("* Software list \"%s\" (%s) matches: \n", swlistdev.list_name(), swlistdev.description());
 			else
-				osd_printf_error("* Compatible software list \"%s\" (%s) matches: \n", swlistdev->list_name(), swlistdev->description());
+				osd_printf_error("* Compatible software list \"%s\" (%s) matches: \n", swlistdev.list_name(), swlistdev.description());
 
 			// print them out
 			for (auto & matche : matches)
@@ -448,7 +497,7 @@ void software_list_device::display_matches(const machine_config &config, const c
 
 software_info *software_list_device::find(const char *look_for, software_info *prev)
 {
-	// NULL search returns nothing
+	// nullptr search returns nothing
 	if (look_for == nullptr)
 		return nullptr;
 
@@ -1179,6 +1228,11 @@ void softlist_parser::parse_data_start(const char *tagname, const char **attribu
 			}
 			else
 				parse_error("Rom name missing");
+		}
+		else if (sizestr != nullptr && loadflag != nullptr && strcmp(loadflag, "ignore") == 0)
+		{
+			UINT32 length = strtol(sizestr, nullptr, 0);
+			add_rom_entry(nullptr, nullptr, 0, length, ROMENTRYTYPE_IGNORE | ROM_INHERITFLAGS);
 		}
 		else
 			parse_error("Incomplete rom definition");

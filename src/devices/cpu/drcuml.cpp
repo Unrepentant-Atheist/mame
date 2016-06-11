@@ -55,6 +55,14 @@ using namespace uml;
 //  TYPE DEFINITIONS
 //**************************************************************************
 
+// determine the type of the native DRC, falling back to C
+#ifndef NATIVE_DRC
+typedef drcbe_c drcbe_native;
+#else
+typedef NATIVE_DRC drcbe_native;
+#endif
+
+
 // structure describing back-end validation test
 struct bevalidate_test
 {
@@ -230,7 +238,7 @@ void drcuml_state::symbol_add(void *base, UINT32 length, const char *name)
 
 //-------------------------------------------------
 //  symbol_find - look up a symbol from the
-//  internal symbol table or return NULL if not
+//  internal symbol table or return nullptr if not
 //  found
 //-------------------------------------------------
 
@@ -252,7 +260,7 @@ const char *drcuml_state::symbol_find(void *base, UINT32 *offset)
 			return cursym->m_name.c_str();
 		}
 
-	// not found; return NULL
+	// not found; return nullptr
 	return nullptr;
 }
 
@@ -502,7 +510,7 @@ const char *drcuml_block::get_comment_text(const instruction &inst, std::string 
 		return comment.c_str();
 	}
 
-	// everything else is NULL
+	// everything else is nullptr
 	return nullptr;
 }
 

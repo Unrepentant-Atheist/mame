@@ -4,8 +4,8 @@
  * pstring.h
  */
 
-#ifndef _PSTRING_H_
-#define _PSTRING_H_
+#ifndef PSTRING_H_
+#define PSTRING_H_
 
 #include <cstdarg>
 #include <cstddef>
@@ -58,7 +58,7 @@ public:
 	~pstring_t();
 
 	// construction with copy
-	pstring_t(const mem_t *string) {init(); if (string != NULL && *string != 0) pcopy(string); }
+	pstring_t(const mem_t *string) {init(); if (string != nullptr && *string != 0) pcopy(string); }
 	pstring_t(const pstring_t &string) {init(); pcopy(string); }
 
 	// assignment operators
@@ -110,8 +110,8 @@ public:
 
 	// conversions
 
-	double as_double(bool *error = NULL) const;
-	long as_long(bool *error = NULL) const;
+	double as_double(bool *error = nullptr) const;
+	long as_long(bool *error = nullptr) const;
 
 	/*
 	 * everything below MAY not work for utf8.
@@ -331,7 +331,7 @@ public:
 	~pstringbuffer();
 
 	// construction with copy
-	pstringbuffer(const char *string) {init(); if (string != NULL) pcopy(string); }
+	pstringbuffer(const char *string) {init(); if (string != nullptr) pcopy(string); }
 	pstringbuffer(const pstring &string) {init(); pcopy(string); }
 
 	// assignment operators
@@ -359,7 +359,7 @@ private:
 
 	void init()
 	{
-		m_ptr = NULL;
+		m_ptr = nullptr;
 		m_size = 0;
 		m_len = 0;
 	}
@@ -378,4 +378,4 @@ private:
 
 };
 
-#endif /* _PSTRING_H_ */
+#endif /* PSTRING_H_ */

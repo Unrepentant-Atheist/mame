@@ -2,7 +2,7 @@
 // copyright-holders:Manuel Abadia
 /***************************************************************************
 
-  machine.c
+  ajax.cpp
 
   Functions to emulate general aspects of the machine (RAM, ROM, interrupts,
   I/O ports)
@@ -140,7 +140,7 @@ WRITE8_MEMBER(ajax_state::ajax_ls138_f10_w)
 	{
 		case 0x00:  /* NSFIRQ + AFR */
 			if (offset)
-				watchdog_reset_w(space, 0, data);
+				m_watchdog->reset_w(space, 0, data);
 			else{
 				if (m_firq_enable)  /* Cause interrupt on slave CPU */
 					m_subcpu->set_input_line(M6809_FIRQ_LINE, HOLD_LINE);
@@ -150,7 +150,7 @@ WRITE8_MEMBER(ajax_state::ajax_ls138_f10_w)
 			m_audiocpu->set_input_line(0, HOLD_LINE);
 			break;
 		case 0x02:  /* Sound command number */
-			soundlatch_byte_w(space, offset, data);
+			m_soundlatch->write(space, offset, data);
 			break;
 		case 0x03:  /* Bankswitch + coin counters + priority*/
 			ajax_bankswitch_w(space, 0, data);

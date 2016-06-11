@@ -922,7 +922,7 @@ public:
 	void set_orientation(int orientation) { m_orientation = orientation; }
 	void set_view(int viewindex);
 	void set_max_texture_size(int maxwidth, int maxheight);
-	void set_transform_primitives(bool transform_primitives) { m_transform_primitives = transform_primitives; }
+	void set_transform_container(bool transform_container) { m_transform_container = transform_container; }
 	void set_keepaspect(bool keepaspect) { m_keepaspect = keepaspect; }
 	void set_scale_mode(bool scale_mode) { m_scale_mode = scale_mode; }
 
@@ -979,7 +979,7 @@ private:
 	void load_layout_files(const internal_layout *layoutfile, bool singlefile);
 	bool load_layout_file(const char *dirname, const char *filename);
 	bool load_layout_file(const char *dirname, const internal_layout *layout_data);
-	void add_container_primitives(render_primitive_list &list, const object_transform &xform, render_container &container, int blendmode);
+	void add_container_primitives(render_primitive_list &list, const object_transform &root_xform, const object_transform &xform, render_container &container, int blendmode);
 	void add_element_primitives(render_primitive_list &list, const object_transform &xform, layout_element &element, int state, int blendmode);
 	bool map_point_internal(INT32 target_x, INT32 target_y, render_container *container, float &mapped_x, float &mapped_y, ioport_port *&mapped_input_port, ioport_value &mapped_input_mask);
 
@@ -1029,8 +1029,8 @@ private:
 	simple_list<render_container> m_debug_containers;   // list of debug containers
 	INT32                   m_clear_extent_count;       // number of clear extents
 	INT32                   m_clear_extents[MAX_CLEAR_EXTENTS]; // array of clear extents
-	bool                    m_transform_primitives;     // determines if the primitives shall be scaled/offset by screen settings,
-														// otherwise the respective render API will handle it (default is true)
+	bool                    m_transform_container;      // determines whether the screen container is transformed by the core renderer,
+														// otherwise the respective render API will handle the transformation (scale, offset)
 
 	static render_screen_list s_empty_screen_list;
 };

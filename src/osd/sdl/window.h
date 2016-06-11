@@ -17,11 +17,15 @@
 #include "modules/osdwindow.h"
 
 #include <cstdint>
+#include <memory>
+#include <list>
 
 
 //============================================================
 //  TYPE DEFINITIONS
 //============================================================
+
+class render_target;
 
 // forward of SDL_DisplayMode not possible (typedef struct) - define wrapper
 
@@ -47,6 +51,11 @@ public:
 	void resize(INT32 width, INT32 height);
 	void destroy();
 
+	void capture_pointer() override;
+	void release_pointer() override;
+	void show_pointer() override;
+	void hide_pointer() override;
+
 	void notify_changed();
 
 	osd_dim get_size() override;
@@ -58,18 +67,11 @@ public:
 	int fullscreen() const override { return m_fullscreen; }
 
 	render_target *target() override { return m_target; }
-	SDL_Window *sdl_window() override { return m_sdl_window; }
 
 	int prescale() const { return m_prescale; }
-	osd_renderer &renderer() const { return *m_renderer; }
 
 	// Pointer to next window
 	sdl_window_info *   m_next;
-
-	// These are used in combine resizing events ... #if SDL13_COMBINE_RESIZE
-	int                 m_resize_width;
-	int                 m_resize_height;
-	osd_ticks_t         m_last_resize;
 
 private:
 	// window handle and info
@@ -84,19 +86,14 @@ private:
 	osd_event           m_rendered_event;
 	render_target *     m_target;
 
-	// Needs to be here as well so we can identify window
-	SDL_Window          *m_sdl_window;
 	// Original display_mode
-	SDL_DM_Wrapper	 	*m_original_mode;
+	SDL_DM_Wrapper      *m_original_mode;
 
 	int                 m_extra_flags;
 
-	void set_renderer(osd_renderer *renderer)
-	{
-		m_renderer = renderer;
-	}
-
-	static OSDWORK_CALLBACK( complete_create_wt );
+	// returns 0 on success, else 1
+	int complete_create();
+	void complete_destroy();
 
 private:
 	int wnd_extra_width();
@@ -114,16 +111,6 @@ private:
 	// monitor info
 	osd_monitor_info *  m_monitor;
 	int                 m_fullscreen;
-	osd_renderer *      m_renderer;
-
-	// static callbacks ...
-
-	static OSDWORK_CALLBACK( sdlwindow_resize_wt );
-	static OSDWORK_CALLBACK( draw_video_contents_wt );
-	static OSDWORK_CALLBACK( sdlwindow_video_window_destroy_wt );
-	static OSDWORK_CALLBACK( sdlwindow_toggle_full_screen_wt );
-	static OSDWORK_CALLBACK( notify_changed_wt );
-	static OSDWORK_CALLBACK( update_cursor_state_wt );
 
 	void measure_fps(int update);
 
@@ -139,7 +126,7 @@ struct osd_draw_callbacks
 //============================================================
 
 // window - list
-extern sdl_window_info *sdl_window_list;
+extern std::list<std::shared_ptr<sdl_window_info>> sdl_window_list;
 
 //============================================================
 //  PROTOTYPES

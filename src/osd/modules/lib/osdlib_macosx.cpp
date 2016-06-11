@@ -22,10 +22,6 @@
 #include "osdcore.h"
 #include "osdlib.h"
 
-// FIXME: We shouldn't use SDL functions in here
-
-#include "sdlinc.h"
-
 //============================================================
 //  osd_getenv
 //============================================================
@@ -153,14 +149,14 @@ char *osd_get_clipboard_text(void)
 	PasteboardRef pasteboard_ref;
 	err = PasteboardCreate(kPasteboardClipboard, &pasteboard_ref);
 	if (err)
-		return NULL;
+		return nullptr;
 
 	PasteboardSynchronize(pasteboard_ref);
 
 	ItemCount item_count;
 	err = PasteboardGetItemCount(pasteboard_ref, &item_count);
 
-	char *result = NULL; // core expects a malloced C string of uft8 data
+	char *result = nullptr; // core expects a malloced C string of uft8 data
 	for (UInt32 item_index = 1; (item_index <= item_count) && !result; item_index++)
 	{
 		PasteboardItemID item_id;

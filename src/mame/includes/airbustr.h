@@ -6,6 +6,8 @@
 
 *************************************************************************/
 
+#include "machine/gen_latch.h"
+#include "machine/watchdog.h"
 #include "video/kan_pand.h"
 
 class airbustr_state : public driver_device
@@ -24,7 +26,10 @@ public:
 		m_pandora(*this, "pandora"),
 		m_gfxdecode(*this, "gfxdecode"),
 		m_screen(*this, "screen"),
-		m_palette(*this, "palette")
+		m_palette(*this, "palette"),
+		m_watchdog(*this, "watchdog"),
+		m_soundlatch(*this, "soundlatch"),
+		m_soundlatch2(*this, "soundlatch2")
 		{ }
 
 	/* memory pointers */
@@ -56,6 +61,9 @@ public:
 	required_device<gfxdecode_device> m_gfxdecode;
 	required_device<screen_device> m_screen;
 	required_device<palette_device> m_palette;
+	required_device<watchdog_timer_device> m_watchdog;
+	required_device<generic_latch_8_device> m_soundlatch;
+	required_device<generic_latch_8_device> m_soundlatch2;
 
 	DECLARE_READ8_MEMBER(devram_r);
 	DECLARE_WRITE8_MEMBER(master_nmi_trigger_w);

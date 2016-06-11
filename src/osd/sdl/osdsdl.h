@@ -8,21 +8,6 @@
 #include "modules/font/font_module.h"
 
 //============================================================
-//  System dependent defines
-//============================================================
-
-
-#if defined(SDLMAME_WIN32)
-		#define SDLMAME_EVENTS_IN_WORKER_THREAD (0)
-		#define SDLMAME_INIT_IN_WORKER_THREAD   (0)
-		#define SDL13_COMBINE_RESIZE (0) //(1) no longer needed
-#else
-	#define SDLMAME_EVENTS_IN_WORKER_THREAD (0)
-	#define SDLMAME_INIT_IN_WORKER_THREAD   (0)
-	#define SDL13_COMBINE_RESIZE (0)
-#endif
-
-//============================================================
 //  Defines
 //============================================================
 
@@ -155,7 +140,7 @@ public:
 	bool should_hide_mouse();
 	void process_events_buf();
 
-	sdl_options &options() { return m_options; }
+	virtual sdl_options &options() override { return m_options; }
 
 protected:
 	virtual void build_slider_list() override;
@@ -165,6 +150,7 @@ private:
 	virtual void osd_exit() override;
 
 	void extract_video_config();
+	void output_oslog(const char *buffer);
 
 	sdl_options &m_options;
 };

@@ -10,10 +10,12 @@
 #include "cpu/mcs48/mcs48.h"
 #include "cpu/mcs51/mcs51.h"
 #include "cpu/z80/z80.h"
+#include "machine/gen_latch.h"
 #include "machine/i8255.h"
 #include "machine/i8243.h"
 #include "machine/nvram.h"
 #include "machine/segaic16.h"
+#include "machine/watchdog.h"
 #include "sound/2151intf.h"
 #include "video/segaic16.h"
 #include "video/sega16sp.h"
@@ -35,7 +37,9 @@ public:
 			m_n7751(*this, "n7751"),
 			m_n7751_i8243(*this, "n7751_8243"),
 			m_nvram(*this, "nvram"),
+			m_watchdog(*this, "watchdog"),
 			m_segaic16vid(*this, "segaic16vid"),
+			m_soundlatch(*this, "soundlatch"),
 			m_sprites(*this, "sprites"),
 			m_workram(*this, "nvram"),
 			m_sound_decrypted_opcodes(*this, "sound_decrypted_opcodes"),
@@ -132,7 +136,9 @@ protected:
 	optional_device<n7751_device> m_n7751;
 	optional_device<i8243_device> m_n7751_i8243;
 	required_device<nvram_device> m_nvram;
+	required_device<watchdog_timer_device> m_watchdog;
 	required_device<segaic16_video_device> m_segaic16vid;
+	required_device<generic_latch_8_device> m_soundlatch;
 	required_device<sega_sys16a_sprite_device> m_sprites;
 
 	// memory pointers

@@ -59,7 +59,7 @@ bgfx_target* target_manager::create_target(std::string name, bgfx::TextureFormat
 
 void target_manager::destroy_target(std::string name, uint32_t screen)
 {
-	std::string full_name = name + std::to_string(screen);
+	std::string full_name = (screen < 0) ? name : (name + std::to_string(screen));
 	if (m_targets[full_name] != nullptr)
 	{
 		delete m_targets[full_name];
@@ -86,9 +86,9 @@ bgfx_target* target_manager::target(uint32_t screen, std::string name)
 	return target;
 }
 
-void target_manager::update_target_sizes(uint32_t screen, uint16_t width, uint16_t height, uint32_t style)
+bool target_manager::update_target_sizes(uint32_t screen, uint16_t width, uint16_t height, uint32_t style)
 {
-	if (style == TARGET_STYLE_CUSTOM) return;
+	if (style == TARGET_STYLE_CUSTOM) return false;
 
 	std::vector<osd_dim>& sizes = style == TARGET_STYLE_GUEST ? m_guest_dims : m_native_dims;
 
@@ -102,7 +102,10 @@ void target_manager::update_target_sizes(uint32_t screen, uint16_t width, uint16
 	{
 		sizes[screen] = osd_dim(width, height);
 		rebuild_targets(screen, style);
+        return true;
 	}
+
+    return false;
 }
 
 void target_manager::rebuild_targets(uint32_t screen, uint32_t style)
@@ -176,12 +179,12 @@ void target_manager::create_target_if_nonexistent(uint32_t screen, std::string n
 
 uint16_t target_manager::width(uint32_t style, uint32_t screen)
 {
-    std::vector<osd_dim>& sizes = style == TARGET_STYLE_GUEST ? m_guest_dims : m_native_dims;
-    return screen < sizes.size() ? sizes[screen].width() : 0;
+	std::vector<osd_dim>& sizes = style == TARGET_STYLE_GUEST ? m_guest_dims : m_native_dims;
+	return screen < sizes.size() ? sizes[screen].width() : 0;
 }
 
 uint16_t target_manager::height(uint32_t style, uint32_t screen)
 {
-    std::vector<osd_dim>& sizes = style == TARGET_STYLE_GUEST ? m_guest_dims : m_native_dims;
-    return screen < sizes.size() ? sizes[screen].height() : 0;
+	std::vector<osd_dim>& sizes = style == TARGET_STYLE_GUEST ? m_guest_dims : m_native_dims;
+	return screen < sizes.size() ? sizes[screen].height() : 0;
 }

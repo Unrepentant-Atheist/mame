@@ -12,6 +12,7 @@
 #include "debugvw.h"
 #include "dvmemory.h"
 #include "debugcpu.h"
+#include "debugger.h"
 #include <ctype.h>
 
 
@@ -135,14 +136,13 @@ void debug_view_memory::enumerate_sources()
 	std::string name;
 
 	// first add all the devices' address spaces
-	memory_interface_iterator iter(machine().root_device());
-	for (device_memory_interface *memintf = iter.first(); memintf != nullptr; memintf = iter.next())
-		if (&memintf->device() != &machine().root_device())
+	for (device_memory_interface &memintf : memory_interface_iterator(machine().root_device()))
+		if (&memintf.device() != &machine().root_device())
 			for (address_spacenum spacenum = AS_0; spacenum < ADDRESS_SPACES; ++spacenum)
-				if (memintf->has_space(spacenum))
+				if (memintf.has_space(spacenum))
 				{
-					address_space &space = memintf->space(spacenum);
-					name = string_format("%s '%s' %s space memory", memintf->device().name(), memintf->device().tag(), space.name());
+					address_space &space = memintf.space(spacenum);
+					name = string_format("%s '%s' %s space memory", memintf.device().name(), memintf.device().tag(), space.name());
 					m_source_list.append(*global_alloc(debug_view_memory_source(name.c_str(), space)));
 				}
 
@@ -748,10 +748,10 @@ bool debug_view_memory::read(UINT8 size, offs_t offs, UINT64 &data)
 		{
 			switch (size)
 			{
-				case 1: data = debug_read_byte(*source.m_space, offs, !m_no_translation); break;
-				case 2: data = debug_read_word(*source.m_space, offs, !m_no_translation); break;
-				case 4: data = debug_read_dword(*source.m_space, offs, !m_no_translation); break;
-				case 8: data = debug_read_qword(*source.m_space, offs, !m_no_translation); break;
+				case 1: data = machine().debugger().cpu().read_byte(*source.m_space, offs, !m_no_translation); break;
+				case 2: data = machine().debugger().cpu().read_word(*source.m_space, offs, !m_no_translation); break;
+				case 4: data = machine().debugger().cpu().read_dword(*source.m_space, offs, !m_no_translation); break;
+				case 8: data = machine().debugger().cpu().read_qword(*source.m_space, offs, !m_no_translation); break;
 			}
 		}
 		return ismapped;
@@ -820,10 +820,10 @@ void debug_view_memory::write(UINT8 size, offs_t offs, UINT64 data)
 	{
 		switch (size)
 		{
-			case 1: debug_write_byte(*source.m_space, offs, data, !m_no_translation); break;
-			case 2: debug_write_word(*source.m_space, offs, data, !m_no_translation); break;
-			case 4: debug_write_dword(*source.m_space, offs, data, !m_no_translation); break;
-			case 8: debug_write_qword(*source.m_space, offs, data, !m_no_translation); break;
+			case 1: machine().debugger().cpu().write_byte(*source.m_space, offs, data, !m_no_translation); break;
+			case 2: machine().debugger().cpu().write_word(*source.m_space, offs, data, !m_no_translation); break;
+			case 4: machine().debugger().cpu().write_dword(*source.m_space, offs, data, !m_no_translation); break;
+			case 8: machine().debugger().cpu().write_qword(*source.m_space, offs, data, !m_no_translation); break;
 		}
 		return;
 	}

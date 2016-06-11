@@ -18,7 +18,7 @@
 #include "osdcore.h"
 #include "osdlib.h"
 
-#include "sdlinc.h"
+#include <SDL2/SDL.h>
 //============================================================
 //  osd_getenv
 //============================================================
@@ -146,7 +146,7 @@ char *osd_get_clipboard_text(void)
 
 char *osd_get_clipboard_text(void)
 {
-	char *result = NULL;
+	char *result = nullptr;
 
 	if (SDL_HasClipboardText())
 	{

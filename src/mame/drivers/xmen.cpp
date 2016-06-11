@@ -11,17 +11,17 @@ notes:
 the way the double screen works in xmen6p is not fully understood
 
 the board only has one of each gfx chip, the only additional chip not found
-on the 2/4p board is 053253.  This chip is also on Run n Gun which should
-likewise be a 2 screen game
+on the 2/4p board is 053253.  This chip is also on Run n Gun which is
+likewise a 2 screen game
 
 ***************************************************************************/
 #include "emu.h"
 #include "cpu/m68000/m68000.h"
 
 #include "machine/eepromser.h"
+#include "machine/watchdog.h"
 #include "cpu/z80/z80.h"
 #include "sound/2151intf.h"
-#include "sound/k054539.h"
 #include "rendlay.h"
 #include "includes/xmen.h"
 #include "includes/konamipt.h"
@@ -57,7 +57,7 @@ WRITE16_MEMBER(xmen_state::eeprom_w)
 
 READ16_MEMBER(xmen_state::sound_status_r)
 {
-	return soundlatch2_byte_r(space, 0);
+	return m_soundlatch2->read(space, 0);
 }
 
 WRITE16_MEMBER(xmen_state::sound_cmd_w)
@@ -65,7 +65,7 @@ WRITE16_MEMBER(xmen_state::sound_cmd_w)
 	if (ACCESSING_BITS_0_7)
 	{
 		data &= 0xff;
-		soundlatch_byte_w(space, 0, data);
+		m_soundlatch->write(space, 0, data);
 	}
 }
 
@@ -101,7 +101,7 @@ static ADDRESS_MAP_START( main_map, AS_PROGRAM, 16, xmen_state )
 	AM_RANGE(0x10804e, 0x10804f) AM_WRITE(sound_irq_w)
 	AM_RANGE(0x108054, 0x108055) AM_READ(sound_status_r)
 	AM_RANGE(0x108060, 0x10807f) AM_DEVWRITE("k053251", k053251_device, lsb_w)
-	AM_RANGE(0x10a000, 0x10a001) AM_READ_PORT("P2_P4") AM_WRITE(watchdog_reset16_w)
+	AM_RANGE(0x10a000, 0x10a001) AM_READ_PORT("P2_P4") AM_DEVWRITE("watchdog", watchdog_timer_device, reset16_w)
 	AM_RANGE(0x10a002, 0x10a003) AM_READ_PORT("P1_P3")
 	AM_RANGE(0x10a004, 0x10a005) AM_READ_PORT("EEPROM")
 	AM_RANGE(0x10a00c, 0x10a00d) AM_DEVREAD("k053246", k053247_device, k053246_word_r)
@@ -116,8 +116,8 @@ static ADDRESS_MAP_START( sound_map, AS_PROGRAM, 8, xmen_state )
 	AM_RANGE(0xc000, 0xdfff) AM_RAM
 	AM_RANGE(0xe000, 0xe22f) AM_DEVREADWRITE("k054539", k054539_device, read, write)
 	AM_RANGE(0xe800, 0xe801) AM_MIRROR(0x0400) AM_DEVREADWRITE("ymsnd", ym2151_device, read, write)
-	AM_RANGE(0xf000, 0xf000) AM_WRITE(soundlatch2_byte_w)
-	AM_RANGE(0xf002, 0xf002) AM_READ(soundlatch_byte_r)
+	AM_RANGE(0xf000, 0xf000) AM_DEVWRITE("soundlatch2", generic_latch_8_device, write)
+	AM_RANGE(0xf002, 0xf002) AM_DEVREAD("soundlatch", generic_latch_8_device, read)
 	AM_RANGE(0xf800, 0xf800) AM_WRITE(sound_bankswitch_w)
 ADDRESS_MAP_END
 
@@ -136,7 +136,7 @@ static ADDRESS_MAP_START( 6p_main_map, AS_PROGRAM, 16, xmen_state )
 	AM_RANGE(0x10804e, 0x10804f) AM_WRITE(sound_irq_w)
 	AM_RANGE(0x108054, 0x108055) AM_READ(sound_status_r)
 	AM_RANGE(0x108060, 0x10807f) AM_DEVWRITE("k053251", k053251_device, lsb_w)
-	AM_RANGE(0x10a000, 0x10a001) AM_READ_PORT("P2_P4") AM_WRITE(watchdog_reset16_w)
+	AM_RANGE(0x10a000, 0x10a001) AM_READ_PORT("P2_P4") AM_DEVWRITE("watchdog", watchdog_timer_device, reset16_w)
 	AM_RANGE(0x10a002, 0x10a003) AM_READ_PORT("P1_P3")
 	AM_RANGE(0x10a004, 0x10a005) AM_READ_PORT("EEPROM")
 	AM_RANGE(0x10a006, 0x10a007) AM_READ_PORT("P5_P6")
@@ -265,7 +265,7 @@ static INPUT_PORTS_START( xmen6p )
 	PORT_BIT( 0x1000, IP_ACTIVE_LOW, IPT_START5 ) /* not verified */
 	PORT_BIT( 0x2000, IP_ACTIVE_LOW, IPT_START6 ) /* not verified */
 	PORT_SERVICE_NO_TOGGLE( 0x4000, IP_ACTIVE_LOW )
-	PORT_BIT( 0x8000, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_CUSTOM_MEMBER(DEVICE_SELF, xmen_state,xmen_frame_r, NULL)  /* screen indicator? */
+	PORT_BIT( 0x8000, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_CUSTOM_MEMBER(DEVICE_SELF, xmen_state,xmen_frame_r, nullptr)  /* screen indicator? */
 
 	PORT_START( "EEPROMOUT" )
 	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("eeprom", eeprom_serial_er5911_device, di_write)
@@ -323,6 +323,8 @@ static MACHINE_CONFIG_START( xmen, xmen_state )
 
 	MCFG_EEPROM_SERIAL_ER5911_8BIT_ADD("eeprom")
 
+	MCFG_WATCHDOG_ADD("watchdog")
+
 	/* video hardware */
 	MCFG_SCREEN_ADD("screen", RASTER)
 	MCFG_SCREEN_REFRESH_RATE(59.17)   /* verified on pcb */
@@ -350,6 +352,9 @@ static MACHINE_CONFIG_START( xmen, xmen_state )
 	/* sound hardware */
 	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
 
+	MCFG_GENERIC_LATCH_8_ADD("soundlatch")
+	MCFG_GENERIC_LATCH_8_ADD("soundlatch2")
+
 	MCFG_YM2151_ADD("ymsnd", XTAL_16MHz/4)  /* verified on pcb */
 	MCFG_SOUND_ROUTE(0, "lspeaker", 0.20)
 	MCFG_SOUND_ROUTE(1, "rspeaker", 0.20)
@@ -370,6 +375,8 @@ static MACHINE_CONFIG_START( xmen6p, xmen_state )
 	MCFG_CPU_PROGRAM_MAP(sound_map)
 
 	MCFG_EEPROM_SERIAL_ER5911_8BIT_ADD("eeprom")
+
+	MCFG_WATCHDOG_ADD("watchdog")
 
 	/* video hardware */
 	MCFG_PALETTE_ADD("palette", 2048)
@@ -410,6 +417,9 @@ static MACHINE_CONFIG_START( xmen6p, xmen_state )
 
 	/* sound hardware */
 	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+
+	MCFG_GENERIC_LATCH_8_ADD("soundlatch")
+	MCFG_GENERIC_LATCH_8_ADD("soundlatch2")
 
 	MCFG_YM2151_ADD("ymsnd", XTAL_16MHz/4)
 	MCFG_SOUND_ROUTE(0, "lspeaker", 0.20)

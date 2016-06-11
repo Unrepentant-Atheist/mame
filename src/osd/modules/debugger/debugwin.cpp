@@ -23,6 +23,7 @@
 
 #include "emu.h"
 #include "debugger.h"
+#include "debug/debugcpu.h"
 
 #include "window.h"
 #include "../input/input_common.h"
@@ -35,11 +36,11 @@ public:
 	debugger_windows() :
 		osd_module(OSD_DEBUG_PROVIDER, "windows"),
 		debug_module(),
-		m_machine(NULL),
+		m_machine(nullptr),
 		m_metrics(),
 		m_waiting_for_debugger(false),
 		m_window_list(),
-		m_main_console(NULL)
+		m_main_console(nullptr)
 	{
 	}
 
@@ -83,12 +84,12 @@ private:
 void debugger_windows::exit()
 {
 	// loop over windows and free them
-	while (m_window_list.first() != NULL)
+	while (m_window_list.first() != nullptr)
 		m_window_list.first()->destroy();
 
-	m_main_console = NULL;
+	m_main_console = nullptr;
 	m_metrics.reset();
-	m_machine = NULL;
+	m_machine = nullptr;
 }
 
 
@@ -102,15 +103,15 @@ void debugger_windows::init_debugger(running_machine &machine)
 void debugger_windows::wait_for_debugger(device_t &device, bool firststop)
 {
 	// create a console window
-	if (m_main_console == NULL)
+	if (m_main_console == nullptr)
 		m_main_console = create_window<consolewin_info>();
 
 	// update the views in the console to reflect the current CPU
-	if (m_main_console != NULL)
+	if (m_main_console != nullptr)
 		m_main_console->set_cpu(device);
 
 	// when we are first stopped, adjust focus to us
-	if (firststop && (m_main_console != NULL))
+	if (firststop && (m_main_console != nullptr))
 	{
 		m_main_console->set_foreground();
 		if (winwindow_has_focus())
@@ -126,7 +127,7 @@ void debugger_windows::wait_for_debugger(device_t &device, bool firststop)
 
 	// get and process messages
 	MSG message;
-	GetMessage(&message, NULL, 0, 0);
+	GetMessage(&message, nullptr, 0, 0);
 
 	switch (message.message)
 	{
@@ -153,14 +154,14 @@ void debugger_windows::wait_for_debugger(device_t &device, bool firststop)
 void debugger_windows::debugger_update()
 {
 	// if we're running live, do some checks
-	if (!winwindow_has_focus() && m_machine && !debug_cpu_is_stopped(*m_machine) && (m_machine->phase() == MACHINE_PHASE_RUNNING))
+	if (!winwindow_has_focus() && m_machine && !m_machine->debugger().cpu().is_stopped() && (m_machine->phase() == MACHINE_PHASE_RUNNING))
 	{
 		// see if the interrupt key is pressed and break if it is
 		if (seq_pressed())
 		{
 			HWND const focuswnd = GetFocus();
 
-			debug_cpu_get_visible_cpu(*m_machine)->debug()->halt_on_next_instruction("User-initiated break\n");
+			m_machine->debugger().cpu().get_visible_cpu()->debug()->halt_on_next_instruction("User-initiated break\n");
 
 			// if we were focused on some window's edit box, reset it to default
 			for (debugwin_info &info : m_window_list)
@@ -236,7 +237,7 @@ void debugger_windows::show_all()
 
 void debugger_windows::hide_all()
 {
-	SetForegroundWindow(win_window_list->m_hwnd);
+	SetForegroundWindow(win_window_list.front()->platform_window<HWND>());
 	for (debugwin_info &info : m_window_list)
 		info.hide();
 }
@@ -254,7 +255,7 @@ template <typename T> T *debugger_windows::create_window()
 	else
 	{
 		global_free(info);
-		return NULL;
+		return nullptr;
 	}
 }
 

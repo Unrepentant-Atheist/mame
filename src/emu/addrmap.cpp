@@ -445,7 +445,7 @@ void address_map::configure(address_spacenum spacenum, UINT8 databits)
 
 void address_map::set_global_mask(offs_t mask)
 {
-//  if (m_entrylist != NULL)
+//  if (m_entrylist != nullptr)
 //      throw emu_fatalerror("AM_GLOBALMASK must be specified before any entries");
 	m_globalmask = mask;
 }
@@ -696,11 +696,10 @@ void address_map::map_validity_check(validity_checker &valid, const device_t &de
 			std::string entry_region = entry.m_devbase.subtag(entry.m_region);
 
 			// look for the region
-			device_iterator deviter(device.mconfig().root_device());
-			for (device_t *dev = deviter.first(); dev != nullptr; dev = deviter.next())
-				for (const rom_entry *romp = rom_first_region(*dev); romp != nullptr && !found; romp = rom_next_region(romp))
+			for (device_t &dev : device_iterator(device.mconfig().root_device()))
+				for (const rom_entry *romp = rom_first_region(dev); romp != nullptr && !found; romp = rom_next_region(romp))
 				{
-					if (rom_region_name(*dev, romp) == entry_region)
+					if (rom_region_name(dev, romp) == entry_region)
 					{
 						// verify the address range is within the region's bounds
 						offs_t length = ROMREGION_GETLENGTH(romp);
@@ -756,8 +755,8 @@ void address_map::map_validity_check(validity_checker &valid, const device_t &de
 		}
 
 		// make sure ports exist
-//      if ((entry.m_read.m_type == AMH_PORT && entry.m_read.m_tag != NULL && portlist.find(entry.m_read.m_tag) == NULL) ||
-//          (entry.m_write.m_type == AMH_PORT && entry.m_write.m_tag != NULL && portlist.find(entry.m_write.m_tag) == NULL))
+//      if ((entry.m_read.m_type == AMH_PORT && entry.m_read.m_tag != nullptr && portlist.find(entry.m_read.m_tag) == nullptr) ||
+//          (entry.m_write.m_type == AMH_PORT && entry.m_write.m_tag != nullptr && portlist.find(entry.m_write.m_tag) == nullptr))
 //          osd_printf_error("%s space memory map entry references nonexistent port tag '%s'\n", spaceconfig.m_name, entry.m_read.m_tag);
 
 		// validate bank and share tags

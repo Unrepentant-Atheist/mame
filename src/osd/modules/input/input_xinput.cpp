@@ -48,14 +48,14 @@ int xinput_api_helper::initialize()
 	status = XInputGetState.initialize();
 	if (status != 0)
 	{
-		osd_printf_error("Failed to initialize function pointer for %s. Error: %d\n", XInputGetState.name(), status);
+		osd_printf_verbose("Failed to initialize function pointer for %s. Error: %d\n", XInputGetState.name(), status);
 		return -1;
 	}
 
 	status = XInputGetCapabilities.initialize();
 	if (status != 0)
 	{
-		osd_printf_error("Failed to initialize function pointer for %s. Error: %d\n", XInputGetCapabilities.name(), status);
+		osd_printf_verbose("Failed to initialize function pointer for %s. Error: %d\n", XInputGetCapabilities.name(), status);
 		return -1;
 	}
 #endif
@@ -115,7 +115,7 @@ xinput_joystick_device::xinput_joystick_device(running_machine &machine, const c
 		gamepad({{0}}),
 		xinput_state({0}),
 		m_xinput_helper(helper),
-	    m_configured(false)
+		m_configured(false)
 {
 }
 

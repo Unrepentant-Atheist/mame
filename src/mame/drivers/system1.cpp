@@ -210,7 +210,7 @@ DIPs are also shared 100% with each other.
 
 flickys1, flickys2
 ------------------
-Very noticibly more difficult than the other two sets.  DIPs have changes (less lives
+Very noticeably more difficult than the other two sets.  DIPs have changes (less lives
 and bonus options).  There is no screen which shows the bonus lives values like the
 other two sets, either.  flickys1 allows for DEMO SOUND which none of the others sets
 seem to have access to.
@@ -218,10 +218,8 @@ seem to have access to.
 ******************************************************************************/
 
 #include "emu.h"
-#include "cpu/z80/z80.h"
 #include "cpu/mcs51/mcs51.h"
 #include "machine/z80pio.h"
-#include "machine/i8255.h"
 #include "machine/segacrpt_device.h"
 #include "machine/mc8123.h"
 #include "sound/sn76496.h"
@@ -529,7 +527,7 @@ READ8_MEMBER(system1_state::sound_data_r)
 	{
 		m_ppi8255->pc6_w(0);
 		m_ppi8255->pc6_w(1);
-		return soundlatch_byte_r(space, offset);
+		return m_soundlatch->read(space, offset);
 	}
 
 	/* if we have a Z80 PIO, get the data from the port and toggle the strobe */
@@ -548,7 +546,7 @@ READ8_MEMBER(system1_state::sound_data_r)
 WRITE8_MEMBER(system1_state::soundport_w)
 {
 	/* boost interleave when communicating with the sound CPU */
-	soundlatch_byte_w(space, 0, data);
+	m_soundlatch->write(space, 0, data);
 	machine().scheduler().boost_interleave(attotime::zero, attotime::from_usec(100));
 }
 
@@ -1996,10 +1994,10 @@ static INPUT_PORTS_START( dakkochn )
 	PORT_INCLUDE( choplift )
 
 	PORT_MODIFY("P1")
-	PORT_BIT( 0xff, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_CUSTOM_MEMBER(DEVICE_SELF, system1_state,dakkochn_mux_data_r, NULL)
+	PORT_BIT( 0xff, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_CUSTOM_MEMBER(DEVICE_SELF, system1_state,dakkochn_mux_data_r, nullptr)
 
 	PORT_MODIFY("P2")
-	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_SPECIAL ) PORT_CUSTOM_MEMBER(DEVICE_SELF, system1_state,dakkochn_mux_status_r, NULL)
+	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_SPECIAL ) PORT_CUSTOM_MEMBER(DEVICE_SELF, system1_state,dakkochn_mux_status_r, nullptr)
 
 	PORT_MODIFY("SYSTEM")
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_UNUSED )     /* start 1 & 2 not connected. */
@@ -2177,6 +2175,8 @@ static MACHINE_CONFIG_START( sys1ppi, system1_state )
 	/* sound hardware */
 	MCFG_SPEAKER_STANDARD_MONO("mono")
 
+	MCFG_GENERIC_LATCH_8_ADD("soundlatch")
+
 	MCFG_SOUND_ADD("sn1", SN76489A, SOUND_CLOCK/4)
 	MCFG_SOUND_ROUTE(ALL_OUTPUTS, "mono", 0.50)
 
@@ -2222,130 +2222,128 @@ MACHINE_CONFIG_END
 	MCFG_CPU_PROGRAM_MAP(system1_map) \
 	MCFG_CPU_DECRYPTED_OPCODES_MAP(decrypted_opcodes_map) \
 	MCFG_CPU_IO_MAP(system1_ppi_io_map) \
-	MCFG_CPU_VBLANK_INT_DRIVER("screen", system1_state, irq0_line_hold) \
-	MCFG_SEGAZ80_SET_DECRYPTED_TAG(":decrypted_opcodes")
+	MCFG_CPU_VBLANK_INT_DRIVER("screen", system1_state, irq0_line_hold)
 
 #define ENCRYPTED_SYS1PIO_MAPS \
 	MCFG_CPU_PROGRAM_MAP(system1_map) \
 	MCFG_CPU_DECRYPTED_OPCODES_MAP(decrypted_opcodes_map) \
 	MCFG_CPU_IO_MAP(system1_pio_io_map) \
-	MCFG_CPU_VBLANK_INT_DRIVER("screen", system1_state, irq0_line_hold) \
-	MCFG_SEGAZ80_SET_DECRYPTED_TAG(":decrypted_opcodes")
+	MCFG_CPU_VBLANK_INT_DRIVER("screen", system1_state, irq0_line_hold)
 
 
 static MACHINE_CONFIG_DERIVED( sys1ppix_315_5178, sys1ppi )
-	MCFG_CPU_REPLACE("maincpu", SEGA_315_5178, MASTER_CLOCK) 
+	MCFG_CPU_REPLACE("maincpu", SEGA_315_5178, MASTER_CLOCK)
 	ENCRYPTED_SYS1PPI_MAPS
 	MCFG_SEGAZ80_SET_DECRYPTED_TAG(":decrypted_opcodes")
 MACHINE_CONFIG_END
 
 static MACHINE_CONFIG_DERIVED( sys1ppix_315_5051, sys1ppi )
-	MCFG_CPU_REPLACE("maincpu", SEGA_315_5051, MASTER_CLOCK) 
+	MCFG_CPU_REPLACE("maincpu", SEGA_315_5051, MASTER_CLOCK)
 	ENCRYPTED_SYS1PPI_MAPS
 	MCFG_SEGACRPT_SET_DECRYPTED_TAG(":decrypted_opcodes")
 MACHINE_CONFIG_END
 
 static MACHINE_CONFIG_DERIVED( sys1ppix_315_5048, sys1ppi )
-	MCFG_CPU_REPLACE("maincpu", SEGA_315_5048, MASTER_CLOCK) 
+	MCFG_CPU_REPLACE("maincpu", SEGA_315_5048, MASTER_CLOCK)
 	ENCRYPTED_SYS1PPI_MAPS
 	MCFG_SEGACRPT_SET_DECRYPTED_TAG(":decrypted_opcodes")
 MACHINE_CONFIG_END
 
 static MACHINE_CONFIG_DERIVED( sys1ppix_315_5033, sys1ppi )
-	MCFG_CPU_REPLACE("maincpu", SEGA_315_5033, MASTER_CLOCK) 
+	MCFG_CPU_REPLACE("maincpu", SEGA_315_5033, MASTER_CLOCK)
 	ENCRYPTED_SYS1PPI_MAPS
 	MCFG_SEGACRPT_SET_DECRYPTED_TAG(":decrypted_opcodes")
 MACHINE_CONFIG_END
 
 static MACHINE_CONFIG_DERIVED( sys1ppix_315_5065, sys1ppi )
-	MCFG_CPU_REPLACE("maincpu", SEGA_315_5065, MASTER_CLOCK) 
+	MCFG_CPU_REPLACE("maincpu", SEGA_315_5065, MASTER_CLOCK)
 	ENCRYPTED_SYS1PPI_MAPS
 	MCFG_SEGACRPT_SET_DECRYPTED_TAG(":decrypted_opcodes")
 MACHINE_CONFIG_END
 
 
 static MACHINE_CONFIG_DERIVED( sys1ppix_315_5098, sys1ppi )
-	MCFG_CPU_REPLACE("maincpu", SEGA_315_5098, MASTER_CLOCK) 
+	MCFG_CPU_REPLACE("maincpu", SEGA_315_5098, MASTER_CLOCK)
 	ENCRYPTED_SYS1PPI_MAPS
 	MCFG_SEGACRPT_SET_DECRYPTED_TAG(":decrypted_opcodes")
 MACHINE_CONFIG_END
 
 static MACHINE_CONFIG_DERIVED( sys1piox_315_5177, sys1pio )
-	MCFG_CPU_REPLACE("maincpu", SEGA_315_5177, MASTER_CLOCK) 
+	MCFG_CPU_REPLACE("maincpu", SEGA_315_5177, MASTER_CLOCK)
 	ENCRYPTED_SYS1PIO_MAPS
 	MCFG_SEGAZ80_SET_DECRYPTED_TAG(":decrypted_opcodes")
 MACHINE_CONFIG_END
 
 static MACHINE_CONFIG_DERIVED( sys1piox_315_5162, sys1pio )
-	MCFG_CPU_REPLACE("maincpu", SEGA_315_5162, MASTER_CLOCK) 
+	MCFG_CPU_REPLACE("maincpu", SEGA_315_5162, MASTER_CLOCK)
 	ENCRYPTED_SYS1PIO_MAPS
 	MCFG_SEGAZ80_SET_DECRYPTED_TAG(":decrypted_opcodes")
 MACHINE_CONFIG_END
 
 static MACHINE_CONFIG_DERIVED( sys1piox_317_0006, sys1pio )
-	MCFG_CPU_REPLACE("maincpu", SEGA_317_0006, MASTER_CLOCK) 
+	MCFG_CPU_REPLACE("maincpu", SEGA_317_0006, MASTER_CLOCK)
 	ENCRYPTED_SYS1PIO_MAPS
 	MCFG_SEGAZ80_SET_DECRYPTED_TAG(":decrypted_opcodes")
 MACHINE_CONFIG_END
 
 static MACHINE_CONFIG_DERIVED( sys1piox_315_5135, sys1pio )
-	MCFG_CPU_REPLACE("maincpu", SEGA_315_5135, MASTER_CLOCK) 
+	MCFG_CPU_REPLACE("maincpu", SEGA_315_5135, MASTER_CLOCK)
 	ENCRYPTED_SYS1PIO_MAPS
 	MCFG_SEGACRPT_SET_DECRYPTED_TAG(":decrypted_opcodes")
 MACHINE_CONFIG_END
 
 static MACHINE_CONFIG_DERIVED( sys1piox_315_5132, sys1pio )
-	MCFG_CPU_REPLACE("maincpu", SEGA_315_5132, MASTER_CLOCK) 
+	MCFG_CPU_REPLACE("maincpu", SEGA_315_5132, MASTER_CLOCK)
 	ENCRYPTED_SYS1PIO_MAPS
 	MCFG_SEGACRPT_SET_DECRYPTED_TAG(":decrypted_opcodes")
 MACHINE_CONFIG_END
 
 static MACHINE_CONFIG_DERIVED( sys1piox_315_5155, sys1pio )
-	MCFG_CPU_REPLACE("maincpu", SEGA_315_5155, MASTER_CLOCK) 
+	MCFG_CPU_REPLACE("maincpu", SEGA_315_5155, MASTER_CLOCK)
 	ENCRYPTED_SYS1PIO_MAPS
 	MCFG_SEGACRPT_SET_DECRYPTED_TAG(":decrypted_opcodes")
 MACHINE_CONFIG_END
 
 static MACHINE_CONFIG_DERIVED( sys1piox_315_5110, sys1pio )
-	MCFG_CPU_REPLACE("maincpu", SEGA_315_5110, MASTER_CLOCK) 
+	MCFG_CPU_REPLACE("maincpu", SEGA_315_5110, MASTER_CLOCK)
 	ENCRYPTED_SYS1PIO_MAPS
 	MCFG_SEGACRPT_SET_DECRYPTED_TAG(":decrypted_opcodes")
 MACHINE_CONFIG_END
 
 static MACHINE_CONFIG_DERIVED( sys1piox_315_5051, sys1pio )
-	MCFG_CPU_REPLACE("maincpu", SEGA_315_5051, MASTER_CLOCK) 
+	MCFG_CPU_REPLACE("maincpu", SEGA_315_5051, MASTER_CLOCK)
 	ENCRYPTED_SYS1PIO_MAPS
 	MCFG_SEGACRPT_SET_DECRYPTED_TAG(":decrypted_opcodes")
 MACHINE_CONFIG_END
 
 static MACHINE_CONFIG_DERIVED( sys1piox_315_5098, sys1pio )
-	MCFG_CPU_REPLACE("maincpu", SEGA_315_5098, MASTER_CLOCK) 
+	MCFG_CPU_REPLACE("maincpu", SEGA_315_5098, MASTER_CLOCK)
 	ENCRYPTED_SYS1PIO_MAPS
 	MCFG_SEGACRPT_SET_DECRYPTED_TAG(":decrypted_opcodes")
 MACHINE_CONFIG_END
 
 static MACHINE_CONFIG_DERIVED( sys1piox_315_5102, sys1pio )
-	MCFG_CPU_REPLACE("maincpu", SEGA_315_5102, MASTER_CLOCK) 
+	MCFG_CPU_REPLACE("maincpu", SEGA_315_5102, MASTER_CLOCK)
 	ENCRYPTED_SYS1PIO_MAPS
 	MCFG_SEGACRPT_SET_DECRYPTED_TAG(":decrypted_opcodes")
 MACHINE_CONFIG_END
 
 
 static MACHINE_CONFIG_DERIVED( sys1piox_315_5133, sys1pio )
-	MCFG_CPU_REPLACE("maincpu", SEGA_315_5133, MASTER_CLOCK) 
+	MCFG_CPU_REPLACE("maincpu", SEGA_315_5133, MASTER_CLOCK)
 	ENCRYPTED_SYS1PIO_MAPS
 	MCFG_SEGACRPT_SET_DECRYPTED_TAG(":decrypted_opcodes")
 MACHINE_CONFIG_END
 
 
 static MACHINE_CONFIG_DERIVED( sys1piox_315_5093, sys1pio )
-	MCFG_CPU_REPLACE("maincpu", SEGA_315_5093, MASTER_CLOCK) 
+	MCFG_CPU_REPLACE("maincpu", SEGA_315_5093, MASTER_CLOCK)
 	ENCRYPTED_SYS1PIO_MAPS
 	MCFG_SEGACRPT_SET_DECRYPTED_TAG(":decrypted_opcodes")
 MACHINE_CONFIG_END
 
 static MACHINE_CONFIG_DERIVED( sys1piox_315_5065, sys1pio )
-	MCFG_CPU_REPLACE("maincpu", SEGA_315_5065, MASTER_CLOCK) 
+	MCFG_CPU_REPLACE("maincpu", SEGA_315_5065, MASTER_CLOCK)
 	ENCRYPTED_SYS1PIO_MAPS
 	MCFG_SEGACRPT_SET_DECRYPTED_TAG(":decrypted_opcodes")
 MACHINE_CONFIG_END
@@ -2359,26 +2357,26 @@ static MACHINE_CONFIG_DERIVED( sys1pios, sys1pio )
 MACHINE_CONFIG_END
 
 static MACHINE_CONFIG_DERIVED( sys1piosx_315_5099, sys1pios )
-	MCFG_CPU_REPLACE("maincpu", SEGA_315_5065, MASTER_CLOCK) 
+	MCFG_CPU_REPLACE("maincpu", SEGA_315_5065, MASTER_CLOCK)
 	ENCRYPTED_SYS1PIO_MAPS
 	MCFG_SEGACRPT_SET_DECRYPTED_TAG(":decrypted_opcodes")
 MACHINE_CONFIG_END
 
 static MACHINE_CONFIG_DERIVED( sys1piosx_315_spat, sys1pios )
-	MCFG_CPU_REPLACE("maincpu", SEGA_315_SPAT, MASTER_CLOCK) 
+	MCFG_CPU_REPLACE("maincpu", SEGA_315_SPAT, MASTER_CLOCK)
 	ENCRYPTED_SYS1PIO_MAPS
 	MCFG_SEGACRPT_SET_DECRYPTED_TAG(":decrypted_opcodes")
 MACHINE_CONFIG_END
 
 
 static MACHINE_CONFIG_DERIVED( sys1ppisx_315_5064, sys1ppis )
-	MCFG_CPU_REPLACE("maincpu", SEGA_315_5064, MASTER_CLOCK) 
+	MCFG_CPU_REPLACE("maincpu", SEGA_315_5064, MASTER_CLOCK)
 	ENCRYPTED_SYS1PPI_MAPS
 	MCFG_SEGACRPT_SET_DECRYPTED_TAG(":decrypted_opcodes")
 MACHINE_CONFIG_END
 
 static MACHINE_CONFIG_DERIVED( sys1ppisx_315_5041, sys1ppis )
-	MCFG_CPU_REPLACE("maincpu", SEGA_315_5041, MASTER_CLOCK) 
+	MCFG_CPU_REPLACE("maincpu", SEGA_315_5041, MASTER_CLOCK)
 	ENCRYPTED_SYS1PPI_MAPS
 	MCFG_SEGACRPT_SET_DECRYPTED_TAG(":decrypted_opcodes")
 MACHINE_CONFIG_END
@@ -2438,25 +2436,25 @@ static MACHINE_CONFIG_DERIVED( sys2x, sys2 )
 MACHINE_CONFIG_END
 
 static MACHINE_CONFIG_DERIVED( sys2_315_5177, sys2 )
-	MCFG_CPU_REPLACE("maincpu", SEGA_315_5177, MASTER_CLOCK) 
+	MCFG_CPU_REPLACE("maincpu", SEGA_315_5177, MASTER_CLOCK)
 	ENCRYPTED_SYS1PPI_MAPS
 	MCFG_SEGAZ80_SET_DECRYPTED_TAG(":decrypted_opcodes")
 MACHINE_CONFIG_END
 
 static MACHINE_CONFIG_DERIVED( sys2_315_5176, sys2 )
-	MCFG_CPU_REPLACE("maincpu", SEGA_315_5176, MASTER_CLOCK) 
+	MCFG_CPU_REPLACE("maincpu", SEGA_315_5176, MASTER_CLOCK)
 	ENCRYPTED_SYS1PPI_MAPS
 	MCFG_SEGAZ80_SET_DECRYPTED_TAG(":decrypted_opcodes")
 MACHINE_CONFIG_END
 
 static MACHINE_CONFIG_DERIVED( sys2_317_0006, sys2 )
-	MCFG_CPU_REPLACE("maincpu", SEGA_317_0006, MASTER_CLOCK) 
+	MCFG_CPU_REPLACE("maincpu", SEGA_317_0006, MASTER_CLOCK)
 	ENCRYPTED_SYS1PPI_MAPS
 	MCFG_SEGAZ80_SET_DECRYPTED_TAG(":decrypted_opcodes")
 MACHINE_CONFIG_END
 
 static MACHINE_CONFIG_DERIVED( sys2_317_0007, sys2 )
-	MCFG_CPU_REPLACE("maincpu", SEGA_317_0007, MASTER_CLOCK) 
+	MCFG_CPU_REPLACE("maincpu", SEGA_317_0007, MASTER_CLOCK)
 	ENCRYPTED_SYS1PPI_MAPS
 	MCFG_SEGAZ80_SET_DECRYPTED_TAG(":decrypted_opcodes")
 MACHINE_CONFIG_END

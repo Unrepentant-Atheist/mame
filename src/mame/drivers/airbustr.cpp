@@ -235,7 +235,7 @@ READ8_MEMBER(airbustr_state::devram_r)
 		   that would reset the main cpu. We avoid this and patch
 		   the rom instead (main cpu has to be reset once at startup) */
 		case 0xfe0:
-			return watchdog_reset_r(space, 0);
+			return m_watchdog->reset_r(space, 0);
 
 		/* Reading a word at eff2 probably yelds the product
 		   of the words written to eff0 and eff2 */
@@ -293,30 +293,27 @@ READ8_MEMBER(airbustr_state::soundcommand_status_r)
 READ8_MEMBER(airbustr_state::soundcommand_r)
 {
 	m_soundlatch_status = 0;    // soundlatch has been read
-	return soundlatch_byte_r(space, 0);
+	return m_soundlatch->read(space, 0);
 }
 
 READ8_MEMBER(airbustr_state::soundcommand2_r)
 {
 	m_soundlatch2_status = 0;   // soundlatch2 has been read
-	return soundlatch2_byte_r(space, 0);
+	return m_soundlatch2->read(space, 0);
 }
 
 WRITE8_MEMBER(airbustr_state::soundcommand_w)
 {
-	soundlatch_byte_w(space, 0, data);
+	m_soundlatch->write(space, 0, data);
 	m_soundlatch_status = 1;    // soundlatch has been written
 	m_audiocpu->set_input_line(INPUT_LINE_NMI, PULSE_LINE); // cause a nmi to sub cpu
 }
 
 WRITE8_MEMBER(airbustr_state::soundcommand2_w)
 {
-	soundlatch2_byte_w(space, 0, data);
+	m_soundlatch2->write(space, 0, data);
 	m_soundlatch2_status = 1;   // soundlatch2 has been written
 }
-
-
-
 
 
 WRITE8_MEMBER(airbustr_state::airbustr_coin_counter_w)
@@ -600,6 +597,8 @@ static MACHINE_CONFIG_START( airbustr, airbustr_state )
 
 	MCFG_QUANTUM_TIME(attotime::from_hz(6000))  // Palette RAM is filled by sub cpu with data supplied by main cpu
 							// Maybe a high value is safer in order to avoid glitches
+
+	MCFG_WATCHDOG_ADD("watchdog")
 	MCFG_WATCHDOG_TIME_INIT(attotime::from_seconds(3))  /* a guess, and certainly wrong */
 
 	/* video hardware */
@@ -623,6 +622,9 @@ static MACHINE_CONFIG_START( airbustr, airbustr_state )
 	/* sound hardware */
 	MCFG_SPEAKER_STANDARD_MONO("mono")
 
+	MCFG_GENERIC_LATCH_8_ADD("soundlatch")
+	MCFG_GENERIC_LATCH_8_ADD("soundlatch2")
+
 	MCFG_SOUND_ADD("ymsnd", YM2203, XTAL_12MHz/4)   /* verified on pcb */
 	MCFG_AY8910_PORT_A_READ_CB(IOPORT("DSW1"))       // DSW-1 connected to port A
 	MCFG_AY8910_PORT_B_READ_CB(IOPORT("DSW2"))       // DSW-2 connected to port B
@@ -636,6 +638,7 @@ static MACHINE_CONFIG_START( airbustr, airbustr_state )
 MACHINE_CONFIG_END
 
 static MACHINE_CONFIG_DERIVED( airbustrb, airbustr )
+	MCFG_WATCHDOG_MODIFY("watchdog")
 	MCFG_WATCHDOG_TIME_INIT(attotime::from_seconds(0)) // no protection device or watchdog
 MACHINE_CONFIG_END
 

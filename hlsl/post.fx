@@ -98,13 +98,13 @@ VS_OUTPUT vs_main(VS_INPUT Input)
 
 	Output.TexCoord = Input.TexCoord;
 	Output.TexCoord += PrepareBloom
-		? 0.0f / TargetDims  // use half texel offset (DX9) to do the blur for first bloom layer
-		: 0.5f / TargetDims; // fix half texel offset correction (DX9)
+		? 0.0f               // use half texel offset (DX9) to do the blur for first bloom layer
+		: 0.5f / TargetDims; // fix half texel offset (DX9)
 
 	Output.ScreenCoord = Input.Position.xy / ScreenDims;
 
 	Output.SourceCoord = Input.TexCoord;
-	Output.SourceCoord += 0.5f / TargetDims;
+	Output.SourceCoord += 0.5f / TargetDims; // fix half texel offset (DX9)
 
 	Output.Color = Input.Color;
 
@@ -141,24 +141,23 @@ uniform float2 ShadowUV = float2(0.25f, 0.25f);
 uniform float3 Power = float3(1.0f, 1.0f, 1.0f);
 uniform float3 Floor = float3(0.0f, 0.0f, 0.0f);
 
-float2 GetAdjustedCoords(float2 coord, float2 centerOffset)
+float2 GetAdjustedCoords(float2 coord)
 {
 	// center coordinates
-	coord -= centerOffset;
+	coord -= 0.5f;
 
 	// apply screen scale
-	coord /= ScreenScale;
+	coord *= ScreenScale;
 
 	// un-center coordinates
-	coord += centerOffset;
+	coord += 0.5f;
 
 	// apply screen offset
-	coord += (centerOffset * 2.0) * ScreenOffset;
+	coord += ScreenOffset;
 
 	return coord;
 }
 
-// vector screen has the same quad texture coordinates for every screen orientation, raster screen differs
 float2 GetShadowCoord(float2 QuadCoord, float2 SourceCoord)
 {
 	float2 QuadTexel = 1.0f / QuadDims;
@@ -195,7 +194,9 @@ float2 GetShadowCoord(float2 QuadCoord, float2 SourceCoord)
 		: shadowFrac.xy;
 
 	float2 shadowCoord = (shadowFrac * shadowUV);
-	shadowCoord += 0.5f / shadowDims; // half texel offset
+	shadowCoord += ShadowTileMode == 0
+		? 0.5f / shadowDims // fix half texel offset (DX9)
+		: 0.0f;
 
 	return shadowCoord;
 }
@@ -203,8 +204,8 @@ float2 GetShadowCoord(float2 QuadCoord, float2 SourceCoord)
 float4 ps_main(PS_INPUT Input) : COLOR
 {
 	float2 ScreenCoord = Input.ScreenCoord;
-	float2 TexCoord = GetAdjustedCoords(Input.TexCoord, 0.5f);
-	float2 SourceCoord = GetAdjustedCoords(Input.SourceCoord, 0.5f);
+	float2 TexCoord = GetAdjustedCoords(Input.TexCoord);
+	float2 SourceCoord = GetAdjustedCoords(Input.SourceCoord);
 
 	// Color
 	float4 BaseColor = tex2D(DiffuseSampler, TexCoord);
@@ -251,7 +252,13 @@ float4 ps_main(PS_INPUT Input) : COLOR
 
 			float ColorBrightness = 0.299f * BaseColor.r + 0.587f * BaseColor.g + 0.114 * BaseColor.b;
 
-			float ScanlineCoord = SourceCoord.y * SourceDims.y * ScanlineScale * PI;
+			float ScanlineCoord = SourceCoord.y;
+			ScanlineCoord += QuadDims.y <= SourceDims.y * 2.0f
+				? 0.5f / QuadDims.y // uncenter scanlines if the quad is less than twice the size of the source
+				: 0.0f;
+
+			ScanlineCoord *= SourceDims.y * ScanlineScale * PI;
+
 			float ScanlineCoordJitter = ScanlineOffset * PHI;
 			float ScanlineSine = sin(ScanlineCoord + ScanlineCoordJitter);
 			float ScanlineWide = ScanlineHeight + ScanlineVariation * max(1.0f, ScanlineHeight) * (1.0f - ColorBrightness);

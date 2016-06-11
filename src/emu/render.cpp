@@ -45,7 +45,7 @@
 #include "config.h"
 #include "drivenum.h"
 #include "xmlfile.h"
-#include "ui/ui.h"
+#include "ui/uimain.h"
 #include <zlib.h>
 
 
@@ -546,7 +546,7 @@ const rgb_t *render_texture::get_adjusted_palette(render_container &container)
 		case TEXFORMAT_ARGB32:
 		case TEXFORMAT_YUY16:
 
-			// if no adjustment necessary, return NULL
+			// if no adjustment necessary, return nullptr
 			if (!container.has_brightness_contrast_gamma_changes())
 				return nullptr;
 			return container.bcg_lookup_table(m_format);
@@ -922,7 +922,7 @@ render_target::render_target(render_manager &manager, const internal_layout *lay
 		m_base_orientation(ROT0),
 		m_maxtexwidth(65536),
 		m_maxtexheight(65536),
-		m_transform_primitives(true)
+		m_transform_container(true)
 {
 	// determine the base layer configuration based on options
 	m_base_layerconfig.set_backdrops_enabled(manager.machine().options().use_backdrops());
@@ -1103,11 +1103,14 @@ int render_target::configured_view(const char *viewname, int targetindex, int nu
 					break;
 				if (viewscreens.count() >= scrcount)
 				{
-					screen_device *screen;
-					for (screen = iter.first(); screen != nullptr; screen = iter.next())
-						if (!viewscreens.contains(*screen))
+					bool has_screen = false;
+					for (screen_device &screen : iter)
+						if (!viewscreens.contains(screen))
+						{
+							has_screen = true;
 							break;
-					if (screen == nullptr)
+						}
+					if (!has_screen)
 						break;
 				}
 			}
@@ -1373,7 +1376,7 @@ render_primitive_list &render_target::get_primitives()
 
 					// if there is no associated element, it must be a screen element
 					if (curitem.screen() != nullptr)
-						add_container_primitives(list, item_xform, curitem.screen()->container(), blendmode);
+						add_container_primitives(list, root_xform, item_xform, curitem.screen()->container(), blendmode);
 					else
 						add_element_primitives(list, item_xform, *curitem.element(), curitem.state(), blendmode);
 				}
@@ -1415,7 +1418,7 @@ render_primitive_list &render_target::get_primitives()
 		ui_xform.no_center = true;
 
 		// add UI elements
-		add_container_primitives(list, ui_xform, debug, BLENDMODE_ALPHA);
+		add_container_primitives(list, root_xform, ui_xform, debug, BLENDMODE_ALPHA);
 	}
 
 	// process the UI if we are the UI target
@@ -1432,7 +1435,7 @@ render_primitive_list &render_target::get_primitives()
 		ui_xform.no_center = false;
 
 		// add UI elements
-		add_container_primitives(list, ui_xform, m_manager.ui_container(), BLENDMODE_ALPHA);
+		add_container_primitives(list, root_xform, ui_xform, m_manager.ui_container(), BLENDMODE_ALPHA);
 	}
 
 	// optimize the list before handing it off
@@ -1695,7 +1698,7 @@ bool render_target::load_layout_file(const char *dirname, const char *filename)
 			fname.insert(0, PATH_SEPARATOR).insert(0, dirname);
 
 		// attempt to open the file; bail if we can't
-		emu_file layoutfile(manager().machine().options().art_path(), OPEN_FLAG_READ);
+		emu_file layoutfile(m_manager.machine().options().art_path(), OPEN_FLAG_READ);
 		osd_file::error filerr = layoutfile.open(fname.c_str());
 		if (filerr != osd_file::error::NONE)
 			return false;
@@ -1729,6 +1732,8 @@ bool render_target::load_layout_file(const char *dirname, const char *filename)
 		result = false;
 	}
 
+	emulator_info::layout_file_cb(*rootnode);
+
 	// free the root node
 	xml_file_free(rootnode);
 	return result;
@@ -1740,7 +1745,7 @@ bool render_target::load_layout_file(const char *dirname, const char *filename)
 //  based on the container
 //-------------------------------------------------
 
-void render_target::add_container_primitives(render_primitive_list &list, const object_transform &xform, render_container &container, int blendmode)
+void render_target::add_container_primitives(render_primitive_list &list, const object_transform &root_xform, const object_transform &xform, render_container &container, int blendmode)
 {
 	// first update the palette for the container, if it is dirty
 	container.update_palette();
@@ -1753,6 +1758,16 @@ void render_target::add_container_primitives(render_primitive_list &list, const 
 	cliprect.y1 = xform.yoffs + xform.yscale;
 	sect_render_bounds(&cliprect, &m_bounds);
 
+	float root_xoffs = root_xform.xoffs + abs(root_xform.xscale - xform.xscale) * 0.5f;
+	float root_yoffs = root_xform.yoffs + abs(root_xform.yscale - xform.yscale) * 0.5f;
+
+	render_bounds root_cliprect;
+	root_cliprect.x0 = root_xoffs;
+	root_cliprect.y0 = root_yoffs;
+	root_cliprect.x1 = root_xoffs + root_xform.xscale;
+	root_cliprect.y1 = root_yoffs + root_xform.yscale;
+	sect_render_bounds(&root_cliprect, &m_bounds);
+
 	// compute the container transform
 	object_transform container_xform;
 	container_xform.orientation = orientation_add(container.orientation(), xform.orientation);
@@ -1763,7 +1778,7 @@ void render_target::add_container_primitives(render_primitive_list &list, const 
 		float yoffs = (container_xform.orientation & ORIENTATION_SWAP_XY) ? container.xoffset() : container.yoffset();
 		if (container_xform.orientation & ORIENTATION_FLIP_X) xoffs = -xoffs;
 		if (container_xform.orientation & ORIENTATION_FLIP_Y) yoffs = -yoffs;
-		if (!m_transform_primitives)
+		if (!m_transform_container)
 		{
 			xscale = 1.0f;
 			yscale = 1.0f;
@@ -1792,22 +1807,32 @@ void render_target::add_container_primitives(render_primitive_list &list, const 
 		render_bounds bounds = curitem.bounds();
 		apply_orientation(bounds, container_xform.orientation);
 
+		float xscale = container_xform.xscale;
+		float yscale = container_xform.yscale;
+		float xoffs = container_xform.xoffs;
+		float yoffs = container_xform.yoffs;
+		if (!m_transform_container && PRIMFLAG_GET_VECTOR(curitem.flags()))
+		{
+			xoffs = root_xoffs;
+			yoffs = root_yoffs;
+		}
+
 		// allocate the primitive and set the transformed bounds/color data
 		render_primitive *prim = list.alloc(render_primitive::INVALID);
 
 		prim->container = &container; /* pass the container along for access to user_settings */
 
-		prim->bounds.x0 = render_round_nearest(container_xform.xoffs + bounds.x0 * container_xform.xscale);
-		prim->bounds.y0 = render_round_nearest(container_xform.yoffs + bounds.y0 * container_xform.yscale);
+		prim->bounds.x0 = render_round_nearest(xoffs + bounds.x0 * xscale);
+		prim->bounds.y0 = render_round_nearest(yoffs + bounds.y0 * yscale);
 		if (curitem.internal() & INTERNAL_FLAG_CHAR)
 		{
-			prim->bounds.x1 = prim->bounds.x0 + render_round_nearest((bounds.x1 - bounds.x0) * container_xform.xscale);
-			prim->bounds.y1 = prim->bounds.y0 + render_round_nearest((bounds.y1 - bounds.y0) * container_xform.yscale);
+			prim->bounds.x1 = prim->bounds.x0 + render_round_nearest((bounds.x1 - bounds.x0) * xscale);
+			prim->bounds.y1 = prim->bounds.y0 + render_round_nearest((bounds.y1 - bounds.y0) * yscale);
 		}
 		else
 		{
-			prim->bounds.x1 = render_round_nearest(container_xform.xoffs + bounds.x1 * container_xform.xscale);
-			prim->bounds.y1 = render_round_nearest(container_xform.yoffs + bounds.y1 * container_xform.yscale);
+			prim->bounds.x1 = render_round_nearest(xoffs + bounds.x1 * xscale);
+			prim->bounds.y1 = render_round_nearest(yoffs + bounds.y1 * yscale);
 		}
 
 		// compute the color of the primitive
@@ -1836,7 +1861,14 @@ void render_target::add_container_primitives(render_primitive_list &list, const 
 				prim->flags |= curitem.flags();
 
 				// clip the primitive
-				clipped = render_clip_line(&prim->bounds, &cliprect);
+				if (!m_transform_container && PRIMFLAG_GET_VECTOR(curitem.flags()))
+				{
+					clipped = render_clip_line(&prim->bounds, &root_cliprect);
+				}
+				else
+				{
+					clipped = render_clip_line(&prim->bounds, &cliprect);
+				}
 				break;
 
 			case CONTAINER_ITEM_QUAD:
@@ -1890,8 +1922,39 @@ void render_target::add_container_primitives(render_primitive_list &list, const 
 
 					if (PRIMFLAG_GET_VECTORBUF(curitem.flags()))
 					{
-						// determine the final orientation (textures are up-side down, so flip y-axis for vectors to immitate that behavior)
-						int finalorient = orientation_add(ORIENTATION_FLIP_Y, container_xform.orientation);
+						// flags X(1) flip-x, Y(2) flip-y, S(4) swap-xy
+						//
+						// X  Y  S   e.g.       flips
+						// 0  0  0   asteroid   !X !Y
+						// 0  0  1   -           X  Y
+						// 0  1  0   speedfrk   !X  Y
+						// 0  1  1   tempest    !X  Y
+						// 1  0  0   -           X !Y
+						// 1  0  1   -           x !Y
+						// 1  1  0   solarq      X  Y
+						// 1  1  1   barrier    !X !Y
+
+						bool flip_x = (m_manager.machine().system().flags & ORIENTATION_FLIP_X) == ORIENTATION_FLIP_X;
+						bool flip_y = (m_manager.machine().system().flags & ORIENTATION_FLIP_Y) == ORIENTATION_FLIP_Y;
+						bool swap_xy = (m_manager.machine().system().flags & ORIENTATION_SWAP_XY) == ORIENTATION_SWAP_XY;
+
+						int vectororient = 0;
+						if (flip_x)
+						{
+							vectororient |= ORIENTATION_FLIP_X;
+						}
+						if (flip_y)
+						{
+							vectororient |= ORIENTATION_FLIP_Y;
+						}
+						if ((flip_x && flip_y && swap_xy) || (!flip_x && !flip_y && swap_xy))
+						{
+							vectororient ^= ORIENTATION_FLIP_X;
+							vectororient ^= ORIENTATION_FLIP_Y;
+						}
+
+						// determine the final orientation (textures are up-side down, so flip axis for vectors to immitate that behavior)
+						int finalorient = orientation_add(vectororient, container_xform.orientation);
 
 						// determine UV coordinates
 						prim->texcoords = oriented_texcoords[finalorient];
@@ -2032,7 +2095,7 @@ bool render_target::map_point_internal(INT32 target_x, INT32 target_y, render_co
 	// convert target coordinates to float
 	float target_fx = (float)(target_x - root_xform.xoffs) / viswidth;
 	float target_fy = (float)(target_y - root_xform.yoffs) / visheight;
-	if (manager().machine().ui().is_menu_active())
+	if (m_manager.machine().ui().is_menu_active())
 	{
 		target_fx = (float)target_x / m_width;
 		target_fy = (float)target_y / m_height;
@@ -2089,7 +2152,7 @@ bool render_target::map_point_internal(INT32 target_x, INT32 target_y, render_co
 
 //-------------------------------------------------
 //  view_name - return the name of the indexed
-//  view, or NULL if it doesn't exist
+//  view, or nullptr if it doesn't exist
 //-------------------------------------------------
 
 layout_view *render_target::view_by_index(int index) const
@@ -2536,9 +2599,8 @@ render_manager::render_manager(running_machine &machine)
 	machine.configuration().config_register("video", config_saveload_delegate(FUNC(render_manager::config_load), this), config_saveload_delegate(FUNC(render_manager::config_save), this));
 
 	// create one container per screen
-	screen_device_iterator iter(machine.root_device());
-	for (screen_device *screen = iter.first(); screen != nullptr; screen = iter.next())
-		screen->set_container(*container_alloc(screen));
+	for (screen_device &screen : screen_device_iterator(machine.root_device()))
+		screen.set_container(*container_alloc(&screen));
 }
 
 
@@ -2737,7 +2799,7 @@ void render_manager::font_free(render_font *font)
 
 void render_manager::invalidate_all(void *refptr)
 {
-	// permit NULL
+	// permit nullptr
 	if (refptr == nullptr)
 		return;
 

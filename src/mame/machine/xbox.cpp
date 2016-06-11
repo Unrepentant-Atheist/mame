@@ -1,6 +1,8 @@
 // license:BSD-3-Clause
 // copyright-holders:Samuele Zannoli
 
+#include <functional>
+
 #include "emu.h"
 #include "cpu/i386/i386.h"
 #include "machine/lpci.h"
@@ -9,6 +11,7 @@
 #include "machine/idectrl.h"
 #include "video/poly.h"
 #include "bitmap.h"
+#include "debugger.h"
 #include "debug/debugcon.h"
 #include "debug/debugcmd.h"
 #include "debug/debugcpu.h"
@@ -20,109 +23,113 @@
 //#define LOG_OHCI
 #define USB_HACK_ENABLED
 
-static void dump_string_command(running_machine &machine, int ref, int params, const char **param)
+void xbox_base_state::dump_string_command(int ref, int params, const char **param)
 {
-	xbox_base_state *state = machine.driver_data<xbox_base_state>();
-	address_space &space = state->m_maincpu->space();
-	UINT64  addr;
-	offs_t address;
-	UINT32 length, maximumlength;
-	offs_t buffer;
+	address_space &space = m_maincpu->space();
 
 	if (params < 1)
 		return;
-	if (!debug_command_parameter_number(machine, param[0], &addr))
+
+	UINT64 addr;
+	if (!machine().debugger().commands().validate_number_parameter(param[0], &addr))
 		return;
-	address = (offs_t)addr;
-	if (!debug_cpu_translate(space, TRANSLATE_READ_DEBUG, &address))
+
+	offs_t address = (offs_t)addr;
+	if (!machine().debugger().cpu().translate(space, TRANSLATE_READ_DEBUG, &address))
 	{
-		debug_console_printf(machine, "Address is unmapped.\n");
+		machine().debugger().console().printf("Address is unmapped.\n");
 		return;
 	}
-	length = space.read_word_unaligned(address);
-	maximumlength = space.read_word_unaligned(address + 2);
-	buffer = space.read_dword_unaligned(address + 4);
-	debug_console_printf(machine, "Length %d word\n", length);
-	debug_console_printf(machine, "MaximumLength %d word\n", maximumlength);
-	debug_console_printf(machine, "Buffer %08X byte* ", buffer);
-	if (!debug_cpu_translate(space, TRANSLATE_READ_DEBUG, &buffer))
+
+	UINT32 length = space.read_word_unaligned(address);
+	UINT32 maximumlength = space.read_word_unaligned(address + 2);
+	offs_t buffer = space.read_dword_unaligned(address + 4);
+	machine().debugger().console().printf("Length %d word\n", length);
+	machine().debugger().console().printf("MaximumLength %d word\n", maximumlength);
+	machine().debugger().console().printf("Buffer %08X byte* ", buffer);
+	if (!machine().debugger().cpu().translate(space, TRANSLATE_READ_DEBUG, &buffer))
 	{
-		debug_console_printf(machine, "\nBuffer is unmapped.\n");
+		machine().debugger().console().printf("\nBuffer is unmapped.\n");
 		return;
 	}
+
 	if (length > 256)
 		length = 256;
+
 	for (int a = 0; a < length; a++)
 	{
 		UINT8 c = space.read_byte(buffer + a);
-		debug_console_printf(machine, "%c", c);
+		machine().debugger().console().printf("%c", c);
 	}
-	debug_console_printf(machine, "\n");
+	machine().debugger().console().printf("\n");
 }
 
-static void dump_process_command(running_machine &machine, int ref, int params, const char **param)
+void xbox_base_state::dump_process_command(int ref, int params, const char **param)
 {
-	xbox_base_state *state = machine.driver_data<xbox_base_state>();
-	address_space &space = state->m_maincpu->space();
+	address_space &space = m_maincpu->space();
+
+	if (params < 1)
+		return;
+
 	UINT64 addr;
-	offs_t address;
+	if (!machine().debugger().commands().validate_number_parameter(param[0], &addr))
+		return;
 
-	if (params < 1)
-		return;
-	if (!debug_command_parameter_number(machine, param[0], &addr))
-		return;
-	address = (offs_t)addr;
-	if (!debug_cpu_translate(space, TRANSLATE_READ_DEBUG, &address))
+	offs_t address = (offs_t)addr;
+	if (!machine().debugger().cpu().translate(space, TRANSLATE_READ_DEBUG, &address))
 	{
-		debug_console_printf(machine, "Address is unmapped.\n");
+		machine().debugger().console().printf("Address is unmapped.\n");
 		return;
 	}
-	debug_console_printf(machine, "ReadyListHead {%08X,%08X} _LIST_ENTRY\n", space.read_dword_unaligned(address), space.read_dword_unaligned(address + 4));
-	debug_console_printf(machine, "ThreadListHead {%08X,%08X} _LIST_ENTRY\n", space.read_dword_unaligned(address + 8), space.read_dword_unaligned(address + 12));
-	debug_console_printf(machine, "StackCount %d dword\n", space.read_dword_unaligned(address + 16));
-	debug_console_printf(machine, "ThreadQuantum %d dword\n", space.read_dword_unaligned(address + 20));
-	debug_console_printf(machine, "BasePriority %d byte\n", space.read_byte(address + 24));
-	debug_console_printf(machine, "DisableBoost %d byte\n", space.read_byte(address + 25));
-	debug_console_printf(machine, "DisableQuantum %d byte\n", space.read_byte(address + 26));
-	debug_console_printf(machine, "_padding %d byte\n", space.read_byte(address + 27));
+	machine().debugger().console().printf("ReadyListHead {%08X,%08X} _LIST_ENTRY\n", space.read_dword_unaligned(address), space.read_dword_unaligned(address + 4));
+	machine().debugger().console().printf("ThreadListHead {%08X,%08X} _LIST_ENTRY\n", space.read_dword_unaligned(address + 8), space.read_dword_unaligned(address + 12));
+	machine().debugger().console().printf("StackCount %d dword\n", space.read_dword_unaligned(address + 16));
+	machine().debugger().console().printf("ThreadQuantum %d dword\n", space.read_dword_unaligned(address + 20));
+	machine().debugger().console().printf("BasePriority %d byte\n", space.read_byte(address + 24));
+	machine().debugger().console().printf("DisableBoost %d byte\n", space.read_byte(address + 25));
+	machine().debugger().console().printf("DisableQuantum %d byte\n", space.read_byte(address + 26));
+	machine().debugger().console().printf("_padding %d byte\n", space.read_byte(address + 27));
 }
 
-static void dump_list_command(running_machine &machine, int ref, int params, const char **param)
+void xbox_base_state::dump_list_command(int ref, int params, const char **param)
 {
-	xbox_base_state *state = machine.driver_data<xbox_base_state>();
-	address_space &space = state->m_maincpu->space();
-	UINT64 addr, offs, start, old;
-	offs_t address, offset;
+	address_space &space = m_maincpu->space();
 
 	if (params < 1)
 		return;
-	if (!debug_command_parameter_number(machine, param[0], &addr))
+
+	UINT64 addr;
+	if (!machine().debugger().commands().validate_number_parameter(param[0], &addr))
 		return;
-	offs = 0;
-	offset = 0;
+
+	UINT64 offs = 0;
+	offs_t offset = 0;
 	if (params >= 2)
 	{
-		if (!debug_command_parameter_number(machine, param[1], &offs))
+		if (!machine().debugger().commands().validate_number_parameter(param[1], &offs))
 			return;
 		offset = (offs_t)offs;
 	}
-	start = addr;
-	address = (offs_t)addr;
-	if (!debug_cpu_translate(space, TRANSLATE_READ_DEBUG, &address))
+
+	UINT64 start = addr;
+	offs_t address = (offs_t)addr;
+	if (!machine().debugger().cpu().translate(space, TRANSLATE_READ_DEBUG, &address))
 	{
-		debug_console_printf(machine, "Address is unmapped.\n");
+		machine().debugger().console().printf("Address is unmapped.\n");
 		return;
 	}
 	if (params >= 2)
-		debug_console_printf(machine, "Entry    Object\n");
+		machine().debugger().console().printf("Entry    Object\n");
 	else
-		debug_console_printf(machine, "Entry\n");
+		machine().debugger().console().printf("Entry\n");
+
+	UINT64 old;
 	for (int num = 0; num < 32; num++)
 	{
 		if (params >= 2)
-			debug_console_printf(machine, "%08X %08X\n", (UINT32)addr, (offs_t)addr - offset);
+			machine().debugger().console().printf("%08X %08X\n", (UINT32)addr, (offs_t)addr - offset);
 		else
-			debug_console_printf(machine, "%08X\n", (UINT32)addr);
+			machine().debugger().console().printf("%08X\n", (UINT32)addr);
 		old = addr;
 		addr = space.read_dword_unaligned(address);
 		if (addr == start)
@@ -130,159 +137,151 @@ static void dump_list_command(running_machine &machine, int ref, int params, con
 		if (addr == old)
 			break;
 		address = (offs_t)addr;
-		if (!debug_cpu_translate(space, TRANSLATE_READ_DEBUG, &address))
+		if (!machine().debugger().cpu().translate(space, TRANSLATE_READ_DEBUG, &address))
 			break;
 	}
 }
 
-static void dump_dpc_command(running_machine &machine, int ref, int params, const char **param)
+void xbox_base_state::dump_dpc_command(int ref, int params, const char **param)
 {
-	xbox_base_state *state = machine.driver_data<xbox_base_state>();
-	address_space &space = state->m_maincpu->space();
-	UINT64 addr;
-	offs_t address;
+	address_space &space = m_maincpu->space();
 
 	if (params < 1)
 		return;
-	if (!debug_command_parameter_number(machine, param[0], &addr))
+
+	UINT64 addr;
+	if (!machine().debugger().commands().validate_number_parameter(param[0], &addr))
 		return;
-	address = (offs_t)addr;
-	if (!debug_cpu_translate(space, TRANSLATE_READ_DEBUG, &address))
+
+	offs_t address = (offs_t)addr;
+	if (!machine().debugger().cpu().translate(space, TRANSLATE_READ_DEBUG, &address))
 	{
-		debug_console_printf(machine, "Address is unmapped.\n");
+		machine().debugger().console().printf("Address is unmapped.\n");
 		return;
 	}
-	debug_console_printf(machine, "Type %d word\n", space.read_word_unaligned(address));
-	debug_console_printf(machine, "Inserted %d byte\n", space.read_byte(address + 2));
-	debug_console_printf(machine, "Padding %d byte\n", space.read_byte(address + 3));
-	debug_console_printf(machine, "DpcListEntry {%08X,%08X} _LIST_ENTRY\n", space.read_dword_unaligned(address + 4), space.read_dword_unaligned(address + 8));
-	debug_console_printf(machine, "DeferredRoutine %08X dword\n", space.read_dword_unaligned(address + 12));
-	debug_console_printf(machine, "DeferredContext %08X dword\n", space.read_dword_unaligned(address + 16));
-	debug_console_printf(machine, "SystemArgument1 %08X dword\n", space.read_dword_unaligned(address + 20));
-	debug_console_printf(machine, "SystemArgument2 %08X dword\n", space.read_dword_unaligned(address + 24));
+	machine().debugger().console().printf("Type %d word\n", space.read_word_unaligned(address));
+	machine().debugger().console().printf("Inserted %d byte\n", space.read_byte(address + 2));
+	machine().debugger().console().printf("Padding %d byte\n", space.read_byte(address + 3));
+	machine().debugger().console().printf("DpcListEntry {%08X,%08X} _LIST_ENTRY\n", space.read_dword_unaligned(address + 4), space.read_dword_unaligned(address + 8));
+	machine().debugger().console().printf("DeferredRoutine %08X dword\n", space.read_dword_unaligned(address + 12));
+	machine().debugger().console().printf("DeferredContext %08X dword\n", space.read_dword_unaligned(address + 16));
+	machine().debugger().console().printf("SystemArgument1 %08X dword\n", space.read_dword_unaligned(address + 20));
+	machine().debugger().console().printf("SystemArgument2 %08X dword\n", space.read_dword_unaligned(address + 24));
 }
 
-static void dump_timer_command(running_machine &machine, int ref, int params, const char **param)
+void xbox_base_state::dump_timer_command(int ref, int params, const char **param)
 {
-	xbox_base_state *state = machine.driver_data<xbox_base_state>();
-	address_space &space = state->m_maincpu->space();
-	UINT64 addr;
-	offs_t address;
+	address_space &space = m_maincpu->space();
 
 	if (params < 1)
 		return;
-	if (!debug_command_parameter_number(machine, param[0], &addr))
+
+	UINT64 addr;
+	if (!machine().debugger().commands().validate_number_parameter(param[0], &addr))
 		return;
-	address = (offs_t)addr;
-	if (!debug_cpu_translate(space, TRANSLATE_READ_DEBUG, &address))
+
+	offs_t address = (offs_t)addr;
+	if (!machine().debugger().cpu().translate(space, TRANSLATE_READ_DEBUG, &address))
 	{
-		debug_console_printf(machine, "Address is unmapped.\n");
+		machine().debugger().console().printf("Address is unmapped.\n");
 		return;
 	}
-	debug_console_printf(machine, "Header.Type %d byte\n", space.read_byte(address));
-	debug_console_printf(machine, "Header.Absolute %d byte\n", space.read_byte(address + 1));
-	debug_console_printf(machine, "Header.Size %d byte\n", space.read_byte(address + 2));
-	debug_console_printf(machine, "Header.Inserted %d byte\n", space.read_byte(address + 3));
-	debug_console_printf(machine, "Header.SignalState %08X dword\n", space.read_dword_unaligned(address + 4));
-	debug_console_printf(machine, "Header.WaitListEntry {%08X,%08X} _LIST_ENTRY\n", space.read_dword_unaligned(address + 8), space.read_dword_unaligned(address + 12));
-	debug_console_printf(machine, "%s", string_format("DueTime %I64x qword\n", (INT64)space.read_qword_unaligned(address + 16)).c_str());
-	debug_console_printf(machine, "TimerListEntry {%08X,%08X} _LIST_ENTRY\n", space.read_dword_unaligned(address + 24), space.read_dword_unaligned(address + 28));
-	debug_console_printf(machine, "Dpc %08X dword\n", space.read_dword_unaligned(address + 32));
-	debug_console_printf(machine, "Period %d dword\n", space.read_dword_unaligned(address + 36));
+	machine().debugger().console().printf("Header.Type %d byte\n", space.read_byte(address));
+	machine().debugger().console().printf("Header.Absolute %d byte\n", space.read_byte(address + 1));
+	machine().debugger().console().printf("Header.Size %d byte\n", space.read_byte(address + 2));
+	machine().debugger().console().printf("Header.Inserted %d byte\n", space.read_byte(address + 3));
+	machine().debugger().console().printf("Header.SignalState %08X dword\n", space.read_dword_unaligned(address + 4));
+	machine().debugger().console().printf("Header.WaitListEntry {%08X,%08X} _LIST_ENTRY\n", space.read_dword_unaligned(address + 8), space.read_dword_unaligned(address + 12));
+	machine().debugger().console().printf("%s", string_format("DueTime %I64x qword\n", (INT64)space.read_qword_unaligned(address + 16)).c_str());
+	machine().debugger().console().printf("TimerListEntry {%08X,%08X} _LIST_ENTRY\n", space.read_dword_unaligned(address + 24), space.read_dword_unaligned(address + 28));
+	machine().debugger().console().printf("Dpc %08X dword\n", space.read_dword_unaligned(address + 32));
+	machine().debugger().console().printf("Period %d dword\n", space.read_dword_unaligned(address + 36));
 }
 
-static void curthread_command(running_machine &machine, int ref, int params, const char **param)
+void xbox_base_state::curthread_command(int ref, int params, const char **param)
 {
-	xbox_base_state *state = machine.driver_data<xbox_base_state>();
-	address_space &space = state->m_maincpu->space();
-	UINT64 fsbase;
-	UINT32 kthrd, topstack, tlsdata;
-	offs_t address;
+	address_space &space = m_maincpu->space();
 
-	fsbase = state->m_maincpu->state_int(44);
-	address = (offs_t)fsbase + 0x28;
-	if (!debug_cpu_translate(space, TRANSLATE_READ_DEBUG, &address))
+	UINT64 fsbase = m_maincpu->state_int(44);
+	offs_t address = (offs_t)fsbase + 0x28;
+	if (!machine().debugger().cpu().translate(space, TRANSLATE_READ_DEBUG, &address))
 	{
-		debug_console_printf(machine, "Address is unmapped.\n");
+		machine().debugger().console().printf("Address is unmapped.\n");
 		return;
 	}
-	kthrd = space.read_dword_unaligned(address);
-	debug_console_printf(machine, "Current thread is %08X\n", kthrd);
+
+	UINT32 kthrd = space.read_dword_unaligned(address);
+	machine().debugger().console().printf("Current thread is %08X\n", kthrd);
+
 	address = (offs_t)kthrd + 0x1c;
-	if (!debug_cpu_translate(space, TRANSLATE_READ_DEBUG, &address))
+	if (!machine().debugger().cpu().translate(space, TRANSLATE_READ_DEBUG, &address))
 		return;
-	topstack = space.read_dword_unaligned(address);
-	debug_console_printf(machine, "Current thread stack top is %08X\n", topstack);
+
+	UINT32 topstack = space.read_dword_unaligned(address);
+	machine().debugger().console().printf("Current thread stack top is %08X\n", topstack);
+
 	address = (offs_t)kthrd + 0x28;
-	if (!debug_cpu_translate(space, TRANSLATE_READ_DEBUG, &address))
+	if (!machine().debugger().cpu().translate(space, TRANSLATE_READ_DEBUG, &address))
 		return;
-	tlsdata = space.read_dword_unaligned(address);
+
+	UINT32 tlsdata = space.read_dword_unaligned(address);
 	if (tlsdata == 0)
 		address = (offs_t)topstack - 0x210 - 8;
 	else
 		address = (offs_t)tlsdata - 8;
-	if (!debug_cpu_translate(space, TRANSLATE_READ_DEBUG, &address))
+	if (!machine().debugger().cpu().translate(space, TRANSLATE_READ_DEBUG, &address))
 		return;
-	debug_console_printf(machine, "Current thread function is %08X\n", space.read_dword_unaligned(address));
+	machine().debugger().console().printf("Current thread function is %08X\n", space.read_dword_unaligned(address));
 }
 
-static void generate_irq_command(running_machine &machine, int ref, int params, const char **param)
+void xbox_base_state::generate_irq_command(int ref, int params, const char **param)
 {
 	UINT64 irq;
-	xbox_base_state *chst = machine.driver_data<xbox_base_state>();
 
 	if (params < 1)
 		return;
-	if (!debug_command_parameter_number(machine, param[0], &irq))
+	if (!machine().debugger().commands().validate_number_parameter(param[0], &irq))
 		return;
 	if (irq > 15)
 		return;
 	if (irq == 2)
 		return;
-	chst->debug_generate_irq((int)irq, true);
+	debug_generate_irq((int)irq, true);
 }
 
-static void nv2a_combiners_command(running_machine &machine, int ref, int params, const char **param)
+void xbox_base_state::nv2a_combiners_command(int ref, int params, const char **param)
 {
-	int en;
-
-	xbox_base_state *chst = machine.driver_data<xbox_base_state>();
-	en = chst->nvidia_nv2a->toggle_register_combiners_usage();
+	int en = nvidia_nv2a->toggle_register_combiners_usage();
 	if (en != 0)
-		debug_console_printf(machine, "Register combiners enabled\n");
+		machine().debugger().console().printf("Register combiners enabled\n");
 	else
-		debug_console_printf(machine, "Register combiners disabled\n");
+		machine().debugger().console().printf("Register combiners disabled\n");
 }
 
-static void waitvblank_command(running_machine &machine, int ref, int params, const char **param)
+void xbox_base_state::waitvblank_command(int ref, int params, const char **param)
 {
-	int en;
-
-	xbox_base_state *chst = machine.driver_data<xbox_base_state>();
-	en = chst->nvidia_nv2a->toggle_wait_vblank_support();
+	int en = nvidia_nv2a->toggle_wait_vblank_support();
 	if (en != 0)
-		debug_console_printf(machine, "Vblank method enabled\n");
+		machine().debugger().console().printf("Vblank method enabled\n");
 	else
-		debug_console_printf(machine, "Vblank method disabled\n");
+		machine().debugger().console().printf("Vblank method disabled\n");
 }
 
-static void grab_texture_command(running_machine &machine, int ref, int params, const char **param)
+void xbox_base_state::grab_texture_command(int ref, int params, const char **param)
 {
 	UINT64 type;
-	xbox_base_state *chst = machine.driver_data<xbox_base_state>();
 
 	if (params < 2)
 		return;
-	if (!debug_command_parameter_number(machine, param[0], &type))
+	if (!machine().debugger().commands().validate_number_parameter(param[0], &type))
 		return;
 	if ((param[1][0] == 0) || (strlen(param[1]) > 127))
 		return;
-	chst->nvidia_nv2a->debug_grab_texture((int)type, param[1]);
+	nvidia_nv2a->debug_grab_texture((int)type, param[1]);
 }
 
-static void grab_vprog_command(running_machine &machine, int ref, int params, const char **param)
+void xbox_base_state::grab_vprog_command(int ref, int params, const char **param)
 {
-	xbox_base_state *chst = machine.driver_data<xbox_base_state>();
 	UINT32 instruction[4];
 	FILE *fil;
 
@@ -293,36 +292,40 @@ static void grab_vprog_command(running_machine &machine, int ref, int params, co
 	if ((fil = fopen(param[0], "wb")) == nullptr)
 		return;
 	for (int n = 0; n < 136; n++) {
-		chst->nvidia_nv2a->debug_grab_vertex_program_slot(n, instruction);
+		nvidia_nv2a->debug_grab_vertex_program_slot(n, instruction);
 		fwrite(instruction, sizeof(UINT32), 4, fil);
 	}
 	fclose(fil);
 }
 
-static void vprogdis_command(running_machine &machine, int ref, int params, const char **param)
+void xbox_base_state::vprogdis_command(int ref, int params, const char **param)
 {
-	UINT64 address, length, type;
-	UINT32 instruction[4];
-	offs_t addr;
-	vertex_program_disassembler vd;
-	char line[64];
-	xbox_base_state *chst = machine.driver_data<xbox_base_state>();
-	address_space &space = chst->m_maincpu->space();
+	address_space &space = m_maincpu->space();
 
 	if (params < 2)
 		return;
-	if (!debug_command_parameter_number(machine, param[0], &address))
+
+	UINT64 address;
+	if (!machine().debugger().commands().validate_number_parameter(param[0], &address))
 		return;
-	if (!debug_command_parameter_number(machine, param[1], &length))
+
+	UINT64 length;
+	if (!machine().debugger().commands().validate_number_parameter(param[1], &length))
 		return;
-	type = 0;
+
+	UINT64 type = 0;
 	if (params > 2)
-		if (!debug_command_parameter_number(machine, param[2], &type))
+		if (!machine().debugger().commands().validate_number_parameter(param[2], &type))
 			return;
-	while (length > 0) {
-		if (type == 1) {
-			addr = (offs_t)address;
-			if (!debug_cpu_translate(space, TRANSLATE_READ_DEBUG, &addr))
+
+	vertex_program_disassembler vd;
+	while (length > 0)
+	{
+		UINT32 instruction[4];
+		if (type == 1)
+		{
+			offs_t addr = (offs_t)address;
+			if (!machine().debugger().cpu().translate(space, TRANSLATE_READ_DEBUG, &addr))
 				return;
 			instruction[0] = space.read_dword_unaligned(address);
 			instruction[1] = space.read_dword_unaligned(address + 4);
@@ -330,65 +333,71 @@ static void vprogdis_command(running_machine &machine, int ref, int params, cons
 			instruction[3] = space.read_dword_unaligned(address + 12);
 		}
 		else
-			chst->nvidia_nv2a->debug_grab_vertex_program_slot((int)address, instruction);
+		{
+			nvidia_nv2a->debug_grab_vertex_program_slot((int)address, instruction);
+		}
+
+		char line[64];
 		while (vd.disassemble(instruction, line) != 0)
-			debug_console_printf(machine, "%s\n", line);
+			machine().debugger().console().printf("%s\n", line);
+
 		if (type == 1)
 			address = address + 4 * 4;
 		else
 			address++;
+
 		length--;
 	}
 }
 
-static void help_command(running_machine &machine, int ref, int params, const char **param)
+void xbox_base_state::help_command(int ref, int params, const char **param)
 {
-	debug_console_printf(machine, "Available Xbox commands:\n");
-	debug_console_printf(machine, "  xbox dump_string,<address> -- Dump _STRING object at <address>\n");
-	debug_console_printf(machine, "  xbox dump_process,<address> -- Dump _PROCESS object at <address>\n");
-	debug_console_printf(machine, "  xbox dump_list,<address>[,<offset>] -- Dump _LIST_ENTRY chain starting at <address>\n");
-	debug_console_printf(machine, "  xbox dump_dpc,<address> -- Dump _KDPC object at <address>\n");
-	debug_console_printf(machine, "  xbox dump_timer,<address> -- Dump _KTIMER object at <address>\n");
-	debug_console_printf(machine, "  xbox curthread -- Print information about current thread\n");
-	debug_console_printf(machine, "  xbox irq,<number> -- Generate interrupt with irq number 0-15\n");
-	debug_console_printf(machine, "  xbox nv2a_combiners -- Toggle use of register combiners\n");
-	debug_console_printf(machine, "  xbox waitvblank -- Toggle support for wait vblank method\n");
-	debug_console_printf(machine, "  xbox grab_texture,<type>,<filename> -- Save to <filename> the next used texture of type <type>\n");
-	debug_console_printf(machine, "  xbox grab_vprog,<filename> -- save current vertex program instruction slots to <filename>\n");
-	debug_console_printf(machine, "  xbox vprogdis,<address>,<length>[,<type>] -- disassemble <lenght> vertex program instructions at <address> of <type>\n");
-	debug_console_printf(machine, "  xbox help -- this list\n");
+	machine().debugger().console().printf("Available Xbox commands:\n");
+	machine().debugger().console().printf("  xbox dump_string,<address> -- Dump _STRING object at <address>\n");
+	machine().debugger().console().printf("  xbox dump_process,<address> -- Dump _PROCESS object at <address>\n");
+	machine().debugger().console().printf("  xbox dump_list,<address>[,<offset>] -- Dump _LIST_ENTRY chain starting at <address>\n");
+	machine().debugger().console().printf("  xbox dump_dpc,<address> -- Dump _KDPC object at <address>\n");
+	machine().debugger().console().printf("  xbox dump_timer,<address> -- Dump _KTIMER object at <address>\n");
+	machine().debugger().console().printf("  xbox curthread -- Print information about current thread\n");
+	machine().debugger().console().printf("  xbox irq,<number> -- Generate interrupt with irq number 0-15\n");
+	machine().debugger().console().printf("  xbox nv2a_combiners -- Toggle use of register combiners\n");
+	machine().debugger().console().printf("  xbox waitvblank -- Toggle support for wait vblank method\n");
+	machine().debugger().console().printf("  xbox grab_texture,<type>,<filename> -- Save to <filename> the next used texture of type <type>\n");
+	machine().debugger().console().printf("  xbox grab_vprog,<filename> -- save current vertex program instruction slots to <filename>\n");
+	machine().debugger().console().printf("  xbox vprogdis,<address>,<length>[,<type>] -- disassemble <lenght> vertex program instructions at <address> of <type>\n");
+	machine().debugger().console().printf("  xbox help -- this list\n");
 }
 
-static void xbox_debug_commands(running_machine &machine, int ref, int params, const char **param)
+void xbox_base_state::xbox_debug_commands(int ref, int params, const char **param)
 {
 	if (params < 1)
 		return;
 	if (strcmp("dump_string", param[0]) == 0)
-		dump_string_command(machine, ref, params - 1, param + 1);
+		dump_string_command(ref, params - 1, param + 1);
 	else if (strcmp("dump_process", param[0]) == 0)
-		dump_process_command(machine, ref, params - 1, param + 1);
+		dump_process_command(ref, params - 1, param + 1);
 	else if (strcmp("dump_list", param[0]) == 0)
-		dump_list_command(machine, ref, params - 1, param + 1);
+		dump_list_command(ref, params - 1, param + 1);
 	else if (strcmp("dump_dpc", param[0]) == 0)
-		dump_dpc_command(machine, ref, params - 1, param + 1);
+		dump_dpc_command(ref, params - 1, param + 1);
 	else if (strcmp("dump_timer", param[0]) == 0)
-		dump_timer_command(machine, ref, params - 1, param + 1);
+		dump_timer_command(ref, params - 1, param + 1);
 	else if (strcmp("curthread", param[0]) == 0)
-		curthread_command(machine, ref, params - 1, param + 1);
+		curthread_command(ref, params - 1, param + 1);
 	else if (strcmp("irq", param[0]) == 0)
-		generate_irq_command(machine, ref, params - 1, param + 1);
+		generate_irq_command(ref, params - 1, param + 1);
 	else if (strcmp("nv2a_combiners", param[0]) == 0)
-		nv2a_combiners_command(machine, ref, params - 1, param + 1);
+		nv2a_combiners_command(ref, params - 1, param + 1);
 	else if (strcmp("waitvblank", param[0]) == 0)
-		waitvblank_command(machine, ref, params - 1, param + 1);
+		waitvblank_command(ref, params - 1, param + 1);
 	else if (strcmp("grab_texture", param[0]) == 0)
-		grab_texture_command(machine, ref, params - 1, param + 1);
+		grab_texture_command(ref, params - 1, param + 1);
 	else if (strcmp("grab_vprog", param[0]) == 0)
-		grab_vprog_command(machine, ref, params - 1, param + 1);
+		grab_vprog_command(ref, params - 1, param + 1);
 	else if (strcmp("vprogdis", param[0]) == 0)
-		vprogdis_command(machine, ref, params - 1, param + 1);
+		vprogdis_command(ref, params - 1, param + 1);
 	else
-		help_command(machine, ref, params - 1, param + 1);
+		help_command(ref, params - 1, param + 1);
 }
 
 void xbox_base_state::debug_generate_irq(int irq, bool active)
@@ -522,7 +531,41 @@ static const char *const usbregnames[] = {
 };
 #endif
 
-READ32_MEMBER(xbox_base_state::usbctrl_r)
+const device_type OHCI_USB_CONTROLLER = &device_creator<ohci_usb_controller>;
+
+ohci_usb_controller::ohci_usb_controller(const machine_config &mconfig, const char *tag, device_t *owner, UINT32 clock) :
+	device_t(mconfig, OHCI_USB_CONTROLLER, "OHCI USB CONTROLLER", tag, owner, clock, "ohciusb", __FILE__),
+	m_interrupt_handler(*this)
+{
+	memset(&ohcist, 0, sizeof(ohcist));
+}
+
+void ohci_usb_controller::device_start()
+{
+	m_maincpu = machine().device<cpu_device>("maincpu");
+	m_interrupt_handler.resolve_safe();
+	ohcist.hc_regs[HcRevision] = 0x10;
+	ohcist.hc_regs[HcFmInterval] = 0x2edf;
+	ohcist.hc_regs[HcLSThreshold] = 0x628;
+	ohcist.hc_regs[HcRhDescriptorA] = 4;
+	ohcist.hc_regs[HcControl] = UsbReset << 6;
+	ohcist.state = UsbReset;
+	ohcist.interruptbulkratio = 1;
+	ohcist.writebackdonehadcounter = 7;
+	for (int n = 0; n <= 4; n++)
+		ohcist.ports[n].address = -1;
+	for (int n = 0; n < 256; n++)
+		ohcist.address[n].port = -1;
+	ohcist.space = &(m_maincpu->space());
+	ohcist.timer = timer_alloc(0);
+	ohcist.timer->enable(false);
+}
+
+void ohci_usb_controller::device_reset()
+{
+}
+
+READ32_MEMBER(ohci_usb_controller::read)
 {
 	UINT32 ret;
 
@@ -532,16 +575,11 @@ READ32_MEMBER(xbox_base_state::usbctrl_r)
 	else
 		logerror("usb controller 0 register %s read\n", usbregnames[offset]);
 #endif
-	ret=ohcist.hc_regs[offset];
-	if (offset == 0) { /* hacks needed until usb (and jvs) is implemented */
-#ifndef USB_HACK_ENABLED
-		hack_usb();
-#endif
-	}
+	ret = ohcist.hc_regs[offset];
 	return ret;
 }
 
-WRITE32_MEMBER(xbox_base_state::usbctrl_w)
+WRITE32_MEMBER(ohci_usb_controller::write)
 {
 	UINT32 old = ohcist.hc_regs[offset];
 
@@ -603,7 +641,7 @@ WRITE32_MEMBER(xbox_base_state::usbctrl_w)
 	}
 	if (offset >= HcRhPortStatus1) {
 		int port = offset - HcRhPortStatus1 + 1; // port 0 not used
-		// bit 0  R:CurrentConnectStatus           W:ClearPortEnable: 1 clears PortEnableStatus
+													// bit 0  R:CurrentConnectStatus           W:ClearPortEnable: 1 clears PortEnableStatus
 		if (data & CCS) {
 			ohcist.hc_regs[offset] &= ~PES;
 			ohcist.address[ohcist.ports[port].address].port = -1;
@@ -674,9 +712,10 @@ WRITE32_MEMBER(xbox_base_state::usbctrl_w)
 	ohcist.hc_regs[offset] = data;
 }
 
-TIMER_CALLBACK_MEMBER(xbox_base_state::usb_ohci_timer)
+void ohci_usb_controller::device_timer(emu_timer &timer, device_timer_id id, int param, void *ptr)
 {
 	UINT32 hcca;
+	UINT32 plh;
 	int changed = 0;
 	int list = 1;
 	bool cont = false;
@@ -709,8 +748,164 @@ TIMER_CALLBACK_MEMBER(xbox_base_state::usb_ohci_timer)
 			if (list == 0) {
 				if (ohcist.hc_regs[HcControl] & PLE) {
 					// periodic list
-					if (ohcist.hc_regs[HcControl] & IE) {
-						// isochronous list
+					plh = ohcist.space->read_dword(hcca + (ohcist.framenumber & 0x1f) * 4);
+					cont = true;
+					while (cont == true) {
+						if (plh != 0) {
+							usb_ohci_read_endpoint_descriptor(plh);
+							// if this an isochronous endpoint and isochronous list not enabled, stop list processing
+							if (((ohcist.hc_regs[HcControl] & IE) == 0) && (ohcist.endpoint_descriptor.f == 1))
+								cont = false;
+						}
+						else
+							cont = false;
+						if (cont == false)
+							break;
+						// service endpoint descriptor
+						// only if it is not halted and not to be skipped
+						if (!(ohcist.endpoint_descriptor.h | ohcist.endpoint_descriptor.k)) {
+							// compare the Endpoint Descriptor TailPointer and NextTransferDescriptor fields.
+							if (ohcist.endpoint_descriptor.headp != ohcist.endpoint_descriptor.tailp) {
+								UINT32 a, b;
+								int R = 0;
+
+								// service transfer descriptor
+								if (ohcist.endpoint_descriptor.f != 1) {
+									usb_ohci_read_transfer_descriptor(ohcist.endpoint_descriptor.headp);
+									// get pid
+									if (ohcist.endpoint_descriptor.d == 1)
+										pid = OutPid; // out
+									else if (ohcist.endpoint_descriptor.d == 2)
+										pid = InPid; // in
+									else {
+										pid = ohcist.transfer_descriptor.dp; // 0 setup 1 out 2 in
+									}
+									a = ohcist.transfer_descriptor.be;
+									b = ohcist.transfer_descriptor.cbp;
+								}
+								else {
+									usb_ohci_read_isochronous_transfer_descriptor(ohcist.endpoint_descriptor.headp);
+									// get pid
+									if (ohcist.endpoint_descriptor.d == 1)
+										pid = OutPid; // out
+									else if (ohcist.endpoint_descriptor.d == 2)
+										pid = InPid; // in
+									else
+										pid = InPid; // in
+									R = (int)ohcist.framenumber - (int)ohcist.isochronous_transfer_descriptor.sf;
+									//if ((R < 0) || (R > (int)ohcist.isochronous_transfer_descriptor.fc))
+									//  ; // greater than fc should be an error
+									if (R == (int)ohcist.isochronous_transfer_descriptor.fc)
+										a = ohcist.isochronous_transfer_descriptor.be;
+									else {
+										a = ohcist.isochronous_transfer_descriptor.offset[R + 1] - 1;
+										if (a & (1 << 12))
+											a = (ohcist.isochronous_transfer_descriptor.be & 0xfffff000) | (a & 0xfff);
+										else
+											a = ohcist.isochronous_transfer_descriptor.bp0 | (a & 0xfff);
+									}
+									b = ohcist.isochronous_transfer_descriptor.offset[R];
+									if (b & (1 << 12))
+										b = (ohcist.isochronous_transfer_descriptor.be & 0xfffff000) | (b & 0xfff);
+									else
+										b = ohcist.isochronous_transfer_descriptor.bp0 | (b & 0xfff);
+								}
+								if ((a ^ b) & 0xfffff000)
+									remain = ((a | 0x1000) & 0x1fff) - (b & 0xfff) + 1;
+								else
+									remain = a - b + 1;
+								mps = ohcist.endpoint_descriptor.mps;
+								if (remain < mps)
+									mps = remain;
+								// if sending ...
+								if (pid != InPid) {
+									// ... get mps bytes
+									for (int c = 0; c < remain; c++) {
+										ohcist.buffer[c] = ohcist.space->read_byte(b);
+										b++;
+										if ((b & 0xfff) == 0)
+											b = ohcist.transfer_descriptor.be & 0xfffff000;
+									}
+								}
+								// should check for time available
+								// execute transaction
+								done = ohcist.address[ohcist.endpoint_descriptor.fa].function->execute_transfer(ohcist.endpoint_descriptor.en, pid, ohcist.buffer, mps);
+								// if receiving ...
+								if (pid == InPid) {
+									// ... store done bytes
+									for (int c = 0; c < done; c++) {
+										ohcist.space->write_byte(b, ohcist.buffer[c]);
+										b++;
+										if ((b & 0xfff) == 0)
+											b = a & 0xfffff000;
+									}
+								}
+								if (ohcist.endpoint_descriptor.f != 1) {
+									// status writeback (CompletionCode field, DataToggleControl field, CurrentBufferPointer field, ErrorCount field)
+									ohcist.transfer_descriptor.cc = NoError;
+									ohcist.transfer_descriptor.t = (ohcist.transfer_descriptor.t ^ 1) | 2;
+									// if all data is transferred (or there was no data to transfer) cbp must be 0, otherwise it must be updated
+									if (done == remain)
+										b = 0;
+									ohcist.transfer_descriptor.cbp = b;
+									ohcist.transfer_descriptor.ec = 0;
+									retire = false;
+									if ((done == mps) && (done == remain)) {
+										retire = true;
+									}
+									if ((done != mps) && (done <= remain))
+										retire = true;
+									if (done == 0)
+										retire = true;
+									if (retire == true) {
+										// retire transfer descriptor
+										a = ohcist.endpoint_descriptor.headp;
+										ohcist.endpoint_descriptor.headp = ohcist.transfer_descriptor.nexttd;
+										ohcist.transfer_descriptor.nexttd = ohcist.hc_regs[HcDoneHead];
+										ohcist.hc_regs[HcDoneHead] = a;
+										ohcist.endpoint_descriptor.c = ohcist.transfer_descriptor.t & 1;
+										if (ohcist.transfer_descriptor.di != 7) {
+											if (ohcist.transfer_descriptor.di < ohcist.writebackdonehadcounter)
+												ohcist.writebackdonehadcounter = ohcist.transfer_descriptor.di;
+										}
+										usb_ohci_writeback_transfer_descriptor(a);
+										usb_ohci_writeback_endpoint_descriptor(plh);
+									}
+									else {
+										usb_ohci_writeback_transfer_descriptor(ohcist.endpoint_descriptor.headp);
+									}
+								}
+								else
+								{
+									// status writeback
+									ohcist.isochronous_transfer_descriptor.cc = NoError;
+									if (done == remain)
+										b = 0;
+									ohcist.isochronous_transfer_descriptor.offset[R] = b;
+									retire = false;
+									if ((done == mps) && (done == remain)) {
+										retire = true;
+									}
+									if ((done != mps) && (done <= remain))
+										retire = true;
+									if (done == 0)
+										retire = true;
+									if (retire == true) {
+										// retire transfer descriptor
+									}
+									else {
+										usb_ohci_writeback_isochronous_transfer_descriptor(ohcist.endpoint_descriptor.headp);
+									}
+								}
+							}
+						}
+						// go to next endpoint
+						if (ohcist.endpoint_descriptor.nexted != 0)
+						{
+							plh = ohcist.endpoint_descriptor.nexted;
+						}
+						else
+							cont = false;
 					}
 				}
 				list = -1;
@@ -755,9 +950,9 @@ TIMER_CALLBACK_MEMBER(xbox_base_state::usb_ohci_timer)
 								usb_ohci_read_transfer_descriptor(ohcist.endpoint_descriptor.headp);
 								// get pid
 								if (ohcist.endpoint_descriptor.d == 1)
-									pid=OutPid; // out
+									pid = OutPid; // out
 								else if (ohcist.endpoint_descriptor.d == 2)
-									pid=InPid; // in
+									pid = InPid; // in
 								else {
 									pid = ohcist.transfer_descriptor.dp; // 0 setup 1 out 2 in
 								}
@@ -789,13 +984,13 @@ TIMER_CALLBACK_MEMBER(xbox_base_state::usb_ohci_timer)
 									}
 								}
 								// should check for time available
-								// execute transaction ohcist.endpoint_descriptor.fa
+								// execute transaction
 								done = ohcist.address[ohcist.endpoint_descriptor.fa].function->execute_transfer(ohcist.endpoint_descriptor.en, pid, ohcist.buffer, mps);
 								// if receiving ...
 								if (pid == InPid) {
 									// ... store done bytes
 									for (int c = 0; c < done; c++) {
-										ohcist.space->write_byte(b,ohcist.buffer[c]);
+										ohcist.space->write_byte(b, ohcist.buffer[c]);
 										b++;
 										if ((b & 0xfff) == 0)
 											b = ohcist.transfer_descriptor.be & 0xfffff000;
@@ -830,7 +1025,8 @@ TIMER_CALLBACK_MEMBER(xbox_base_state::usb_ohci_timer)
 									}
 									usb_ohci_writeback_transfer_descriptor(a);
 									usb_ohci_writeback_endpoint_descriptor(ohcist.hc_regs[HcControlCurrentED]);
-								} else {
+								}
+								else {
 									usb_ohci_writeback_transfer_descriptor(ohcist.endpoint_descriptor.headp);
 								}
 							}
@@ -905,10 +1101,6 @@ TIMER_CALLBACK_MEMBER(xbox_base_state::usb_ohci_timer)
 								mps = ohcist.endpoint_descriptor.mps;
 								if (remain < mps)
 									mps = remain;
-								if (ohcist.transfer_descriptor.cbp == 0) {
-									remain = 0;
-									mps = 0;
-								}
 								b = ohcist.transfer_descriptor.cbp;
 								// if sending ...
 								if (pid != InPid) {
@@ -921,7 +1113,7 @@ TIMER_CALLBACK_MEMBER(xbox_base_state::usb_ohci_timer)
 									}
 								}
 								// should check for time available
-								// execute transaction ohcist.endpoint_descriptor.fa
+								// execute transaction
 								done = ohcist.address[ohcist.endpoint_descriptor.fa].function->execute_transfer(ohcist.endpoint_descriptor.en, pid, ohcist.buffer, mps);
 								// if receiving ...
 								if (pid == InPid) {
@@ -981,7 +1173,7 @@ TIMER_CALLBACK_MEMBER(xbox_base_state::usb_ohci_timer)
 					if ((ohcist.hc_regs[HcCommandStatus] & (1 << 1)) && (ohcist.hc_regs[HcControl] & CLE))
 						list = 1; // go to control list if enabled and filled
 					else if ((ohcist.hc_regs[HcCommandStatus] & (1 << 2)) && (ohcist.hc_regs[HcControl] & BLE))
-						list = 2; // otherwise stai in bulk list if enabled and filled
+						list = 2; // otherwise stay in bulk list if enabled and filled
 					else
 						list = 0; // if no control or bulk lists, go to periodic list
 				}
@@ -1009,12 +1201,12 @@ TIMER_CALLBACK_MEMBER(xbox_base_state::usb_ohci_timer)
 	usb_ohci_interrupts();
 }
 
-void xbox_base_state::usb_ohci_plug(int port, ohci_function_device *function)
+void ohci_usb_controller::usb_ohci_plug(int port, ohci_function_device *function)
 {
 	if ((port > 0) && (port <= 4)) {
 		ohcist.ports[port].function = function;
 		ohcist.ports[port].address = -1;
-		ohcist.hc_regs[HcRhPortStatus1+port-1] = CCS | CSC;
+		ohcist.hc_regs[HcRhPortStatus1 + port - 1] = CCS | CSC;
 		if (ohcist.state != UsbReset)
 		{
 			ohcist.hc_regs[HcInterruptStatus] |= RootHubStatusChange;
@@ -1023,7 +1215,146 @@ void xbox_base_state::usb_ohci_plug(int port, ohci_function_device *function)
 	}
 }
 
-ohci_function_device::ohci_function_device(running_machine &machine, xbox_base_state *usb_bus_manager)
+void ohci_usb_controller::usb_ohci_interrupts()
+{
+	if (((ohcist.hc_regs[HcInterruptStatus] & ohcist.hc_regs[HcInterruptEnable]) != 0) && ((ohcist.hc_regs[HcInterruptEnable] & MasterInterruptEnable) != 0))
+	{
+		//pic8259_1->ir1_w(1);
+		m_interrupt_handler(1);
+	} else
+	{
+		//pic8259_1->ir1_w(0);
+		m_interrupt_handler(0);
+	}
+}
+
+void ohci_usb_controller::usb_ohci_read_endpoint_descriptor(UINT32 address)
+{
+	UINT32 w;
+
+	w = ohcist.space->read_dword(address);
+	ohcist.endpoint_descriptor.word0 = w;
+	ohcist.endpoint_descriptor.fa = w & 0x7f;
+	ohcist.endpoint_descriptor.en = (w >> 7) & 15;
+	ohcist.endpoint_descriptor.d = (w >> 11) & 3;
+	ohcist.endpoint_descriptor.s = (w >> 13) & 1;
+	ohcist.endpoint_descriptor.k = (w >> 14) & 1;
+	ohcist.endpoint_descriptor.f = (w >> 15) & 1;
+	ohcist.endpoint_descriptor.mps = (w >> 16) & 0x7ff;
+	ohcist.endpoint_descriptor.tailp = ohcist.space->read_dword(address + 4);
+	w = ohcist.space->read_dword(address + 8);
+	ohcist.endpoint_descriptor.headp = w & 0xfffffffc;
+	ohcist.endpoint_descriptor.h = w & 1;
+	ohcist.endpoint_descriptor.c = (w >> 1) & 1;
+	ohcist.endpoint_descriptor.nexted = ohcist.space->read_dword(address + 12);
+}
+
+void ohci_usb_controller::usb_ohci_writeback_endpoint_descriptor(UINT32 address)
+{
+	UINT32 w;
+
+	w = ohcist.endpoint_descriptor.word0 & 0xf8000000;
+	w = w | (ohcist.endpoint_descriptor.mps << 16) | (ohcist.endpoint_descriptor.f << 15) | (ohcist.endpoint_descriptor.k << 14) | (ohcist.endpoint_descriptor.s << 13) | (ohcist.endpoint_descriptor.d << 11) | (ohcist.endpoint_descriptor.en << 7) | ohcist.endpoint_descriptor.fa;
+	ohcist.space->write_dword(address, w);
+	w = ohcist.endpoint_descriptor.headp | (ohcist.endpoint_descriptor.c << 1) | ohcist.endpoint_descriptor.h;
+	ohcist.space->write_dword(address + 8, w);
+}
+
+void ohci_usb_controller::usb_ohci_read_transfer_descriptor(UINT32 address)
+{
+	UINT32 w;
+
+	w = ohcist.space->read_dword(address);
+	ohcist.transfer_descriptor.word0 = w;
+	ohcist.transfer_descriptor.cc = (w >> 28) & 15;
+	ohcist.transfer_descriptor.ec = (w >> 26) & 3;
+	ohcist.transfer_descriptor.t = (w >> 24) & 3;
+	ohcist.transfer_descriptor.di = (w >> 21) & 7;
+	ohcist.transfer_descriptor.dp = (w >> 19) & 3;
+	ohcist.transfer_descriptor.r = (w >> 18) & 1;
+	ohcist.transfer_descriptor.cbp = ohcist.space->read_dword(address + 4);
+	ohcist.transfer_descriptor.nexttd = ohcist.space->read_dword(address + 8);
+	ohcist.transfer_descriptor.be = ohcist.space->read_dword(address + 12);
+}
+
+void ohci_usb_controller::usb_ohci_writeback_transfer_descriptor(UINT32 address)
+{
+	UINT32 w;
+
+	w = ohcist.transfer_descriptor.word0 & 0x0003ffff;
+	w = w | (ohcist.transfer_descriptor.cc << 28) | (ohcist.transfer_descriptor.ec << 26) | (ohcist.transfer_descriptor.t << 24) | (ohcist.transfer_descriptor.di << 21) | (ohcist.transfer_descriptor.dp << 19) | (ohcist.transfer_descriptor.r << 18);
+	ohcist.space->write_dword(address, w);
+	ohcist.space->write_dword(address + 4, ohcist.transfer_descriptor.cbp);
+	ohcist.space->write_dword(address + 8, ohcist.transfer_descriptor.nexttd);
+}
+
+void ohci_usb_controller::usb_ohci_read_isochronous_transfer_descriptor(UINT32 address)
+{
+	UINT32 w;
+
+	w = ohcist.space->read_dword(address);
+	ohcist.isochronous_transfer_descriptor.word0 = w;
+	ohcist.isochronous_transfer_descriptor.cc = (w >> 28) & 15;
+	ohcist.isochronous_transfer_descriptor.fc = (w >> 24) & 7;
+	ohcist.isochronous_transfer_descriptor.di = (w >> 21) & 7;
+	ohcist.isochronous_transfer_descriptor.sf = w & 0xffff;
+	w = ohcist.space->read_dword(address + 4);
+	ohcist.isochronous_transfer_descriptor.word1 = w;
+	ohcist.isochronous_transfer_descriptor.bp0 = w & 0xfffff000;
+	ohcist.isochronous_transfer_descriptor.nexttd = ohcist.space->read_dword(address + 8);
+	ohcist.isochronous_transfer_descriptor.be = ohcist.space->read_dword(address + 12);
+	w = ohcist.space->read_dword(address + 16);
+	ohcist.isochronous_transfer_descriptor.offset[0] = w & 0xffff;
+	ohcist.isochronous_transfer_descriptor.offset[1] = (w >> 16) & 0xffff;
+	w = ohcist.space->read_dword(address + 20);
+	ohcist.isochronous_transfer_descriptor.offset[2] = w & 0xffff;
+	ohcist.isochronous_transfer_descriptor.offset[3] = (w >> 16) & 0xffff;
+	w = ohcist.space->read_dword(address + 24);
+	ohcist.isochronous_transfer_descriptor.offset[4] = w & 0xffff;
+	ohcist.isochronous_transfer_descriptor.offset[5] = (w >> 16) & 0xffff;
+	w = ohcist.space->read_dword(address + 28);
+	ohcist.isochronous_transfer_descriptor.offset[6] = w & 0xffff;
+	ohcist.isochronous_transfer_descriptor.offset[7] = (w >> 16) & 0xffff;
+}
+
+void ohci_usb_controller::usb_ohci_writeback_isochronous_transfer_descriptor(UINT32 address)
+{
+	UINT32 w;
+
+	w = ohcist.isochronous_transfer_descriptor.word0 & 0x1f0000;
+	w = w | (ohcist.isochronous_transfer_descriptor.cc << 28) | (ohcist.isochronous_transfer_descriptor.fc << 24) | (ohcist.isochronous_transfer_descriptor.di << 21) | ohcist.isochronous_transfer_descriptor.sf;
+	ohcist.space->write_dword(address, w);
+	w = ohcist.isochronous_transfer_descriptor.word1 & 0xfff;
+	w = w | ohcist.isochronous_transfer_descriptor.bp0;
+	ohcist.space->write_dword(address + 4, w);
+	ohcist.space->write_dword(address + 8, ohcist.isochronous_transfer_descriptor.nexttd);
+	ohcist.space->write_dword(address + 12, ohcist.isochronous_transfer_descriptor.be);
+	w = (ohcist.isochronous_transfer_descriptor.offset[1] << 16) | ohcist.isochronous_transfer_descriptor.offset[0];
+	ohcist.space->write_dword(address + 16, w);
+	w = (ohcist.isochronous_transfer_descriptor.offset[3] << 16) | ohcist.isochronous_transfer_descriptor.offset[2];
+	ohcist.space->write_dword(address + 20, w);
+	w = (ohcist.isochronous_transfer_descriptor.offset[5] << 16) | ohcist.isochronous_transfer_descriptor.offset[4];
+	ohcist.space->write_dword(address + 24, w);
+	w = (ohcist.isochronous_transfer_descriptor.offset[7] << 16) | ohcist.isochronous_transfer_descriptor.offset[6];
+	ohcist.space->write_dword(address + 28, w);
+}
+
+void ohci_usb_controller::usb_ohci_device_address_changed(int old_address, int new_address)
+{
+	ohcist.address[new_address].function = ohcist.address[old_address].function;
+	ohcist.address[new_address].port = ohcist.address[old_address].port;
+	ohcist.address[old_address].port = -1;
+}
+
+/*
+* ohci device base class
+*/
+
+ohci_function_device::ohci_function_device()
+{
+}
+
+void ohci_function_device::initialize(running_machine &machine, ohci_usb_controller *usb_bus_manager)
 {
 	busmanager = usb_bus_manager;
 	state = DefaultState;
@@ -1445,11 +1776,15 @@ int ohci_function_device::execute_transfer(int endpoint, int pid, UINT8 *buffer,
 		}
 		else if (endpoints[endpoint].type == BulkEndpoint)
 			return handle_bulk_pid(endpoint, pid, buffer, size);
+		else if (endpoints[endpoint].type == InterruptEndpoint)
+			return handle_interrupt_pid(endpoint, pid, buffer, size);
+		else if (endpoints[endpoint].type == IsochronousEndpoint)
+			return handle_isochronous_pid(endpoint, pid, buffer, size);
 		else
 			return -1;
 	}
 	else if (pid == OutPid) {
-		if (endpoints[endpoint].type == ControlEndpoint) { //if (endpoint == 0) {
+		if (endpoints[endpoint].type == ControlEndpoint) {
 			// case ==1, nothing
 			// case ==0, give data
 			// if host->device, since OutPid then this is data stage
@@ -1470,11 +1805,73 @@ int ohci_function_device::execute_transfer(int endpoint, int pid, UINT8 *buffer,
 		}
 		else if (endpoints[endpoint].type == BulkEndpoint)
 			return handle_bulk_pid(endpoint, pid, buffer, size);
+		else if (endpoints[endpoint].type == InterruptEndpoint)
+			return handle_interrupt_pid(endpoint, pid, buffer, size);
+		else if (endpoints[endpoint].type == IsochronousEndpoint)
+			return handle_isochronous_pid(endpoint, pid, buffer, size);
 		else
 			return -1;
 	}
 	return size;
 }
+
+INPUT_PORTS_START(xbox_controller)
+	PORT_START("ThumbstickLh") // left analog thumbstick horizontal movement
+	PORT_BIT(0xff, 0x80, IPT_AD_STICK_X) PORT_NAME("ThumbstickLh") PORT_SENSITIVITY(100) PORT_KEYDELTA(1) PORT_MINMAX(0, 0xff)
+		PORT_CODE_DEC(KEYCODE_J) PORT_CODE_INC(KEYCODE_L)
+	PORT_START("ThumbstickLv") // left analog thumbstick vertical movement
+	PORT_BIT(0xff, 0x80, IPT_AD_STICK_Y) PORT_NAME("ThumbstickLv") PORT_SENSITIVITY(100) PORT_KEYDELTA(1) PORT_MINMAX(0, 0xff)
+		PORT_CODE_DEC(KEYCODE_K) PORT_CODE_INC(KEYCODE_I)
+
+	PORT_START("ThumbstickRh") // right analog thumbstick horizontal movement
+	PORT_BIT(0xff, 0x80, IPT_AD_STICK_X) PORT_NAME("ThumbstickRh") PORT_SENSITIVITY(100) PORT_KEYDELTA(1) PORT_MINMAX(0, 0xff)
+		PORT_CODE_DEC(KEYCODE_4_PAD) PORT_CODE_INC(KEYCODE_6_PAD)
+	PORT_START("ThumbstickRv") // right analog thumbstick vertical movement
+	PORT_BIT(0xff, 0x80, IPT_AD_STICK_Y) PORT_NAME("ThumbstickRv") PORT_SENSITIVITY(100) PORT_KEYDELTA(1) PORT_MINMAX(0, 0xff)
+		PORT_CODE_DEC(KEYCODE_2_PAD) PORT_CODE_INC(KEYCODE_8_PAD)
+
+	PORT_START("DPad") // pressure sensitive directional pad
+	PORT_BIT(0x01, IP_ACTIVE_HIGH, IPT_JOYSTICK_UP) PORT_NAME("DPad Up")
+	PORT_BIT(0x02, IP_ACTIVE_HIGH, IPT_JOYSTICK_DOWN) PORT_NAME("DPad Down")
+	PORT_BIT(0x04, IP_ACTIVE_HIGH, IPT_JOYSTICK_LEFT) PORT_NAME("DPad Left")
+	PORT_BIT(0x08, IP_ACTIVE_HIGH, IPT_JOYSTICK_RIGHT) PORT_NAME("DPad Right")
+
+	PORT_START("TriggerL") // analog trigger
+	PORT_BIT(0xff, 0x00, IPT_PEDAL) PORT_NAME("TriggerL") PORT_SENSITIVITY(100) PORT_KEYDELTA(1) PORT_MINMAX(0, 0xff)
+		PORT_CODE_DEC(KEYCODE_1_PAD) PORT_CODE_INC(KEYCODE_7_PAD)
+
+	PORT_START("TriggerR") // analog trigger
+	PORT_BIT(0xff, 0x00, IPT_PEDAL) PORT_NAME("TriggerR") PORT_SENSITIVITY(100) PORT_KEYDELTA(1) PORT_MINMAX(0, 0xff)
+		PORT_CODE_DEC(KEYCODE_3_PAD) PORT_CODE_INC(KEYCODE_9_PAD)
+
+	PORT_START("Buttons") // digital buttons
+	PORT_BIT(0x01, IP_ACTIVE_HIGH, IPT_BUTTON2) PORT_NAME("Start") // Start button
+	PORT_BIT(0x02, IP_ACTIVE_HIGH, IPT_BUTTON1) PORT_NAME("Back") // Back button
+
+	PORT_START("AGreen") // analog button
+	PORT_BIT(0xff, 0x00, IPT_PEDAL) PORT_NAME("A-Green") PORT_SENSITIVITY(100) PORT_KEYDELTA(32)  PORT_MINMAX(0, 0xff)
+		PORT_CODE_DEC(KEYCODE_A) PORT_CODE_INC(KEYCODE_Q)
+
+	PORT_START("BRed") // analog button
+	PORT_BIT(0xff, 0x00, IPT_PEDAL) PORT_NAME("B-Red") PORT_SENSITIVITY(100) PORT_KEYDELTA(32) PORT_MINMAX(0, 0xff)
+		PORT_CODE_DEC(KEYCODE_S) PORT_CODE_INC(KEYCODE_W)
+
+	PORT_START("XBlue") // analog button
+	PORT_BIT(0xff, 0x00, IPT_PEDAL) PORT_NAME("X-Blue") PORT_SENSITIVITY(100) PORT_KEYDELTA(32) PORT_MINMAX(0, 0xff)
+		PORT_CODE_DEC(KEYCODE_D) PORT_CODE_INC(KEYCODE_E)
+
+	PORT_START("YYellow") // analog button
+	PORT_BIT(0xff, 0x00, IPT_PEDAL) PORT_NAME("Y-Yellow") PORT_SENSITIVITY(100) PORT_KEYDELTA(32) PORT_MINMAX(0, 0xff)
+		PORT_CODE_DEC(KEYCODE_F) PORT_CODE_INC(KEYCODE_R)
+
+	PORT_START("Black") // analog button
+	PORT_BIT(0xff, 0x00, IPT_PEDAL) PORT_NAME("Black") PORT_SENSITIVITY(100) PORT_KEYDELTA(32) PORT_MINMAX(0, 0xff)
+		PORT_CODE_DEC(KEYCODE_G) PORT_CODE_INC(KEYCODE_T)
+
+	PORT_START("White") // analog button
+	PORT_BIT(0xff, 0x00, IPT_PEDAL) PORT_NAME("White") PORT_SENSITIVITY(100) PORT_KEYDELTA(32) PORT_MINMAX(0, 0xff)
+		PORT_CODE_DEC(KEYCODE_H) PORT_CODE_INC(KEYCODE_Y)
+INPUT_PORTS_END
 
 const USBStandardDeviceDescriptor ohci_game_controller_device::devdesc = { 18,1,0x110,0x00,0x00,0x00,64,0x45e,0x202,0x100,0,0,0,1 };
 const USBStandardConfigurationDescriptor ohci_game_controller_device::condesc = { 9,2,0x20,1,1,0,0x80,50 };
@@ -1482,9 +1879,31 @@ const USBStandardInterfaceDescriptor ohci_game_controller_device::intdesc = { 9,
 const USBStandardEndpointDescriptor ohci_game_controller_device::enddesc82 = { 7,5,0x82,3,0x20,4 };
 const USBStandardEndpointDescriptor ohci_game_controller_device::enddesc02 = { 7,5,0x02,3,0x20,4 };
 
-ohci_game_controller_device::ohci_game_controller_device(running_machine &machine, xbox_base_state *usb_bus_manager) :
-	ohci_function_device(machine, usb_bus_manager)
+const device_type OHCI_GAME_CONTROLLER = &device_creator<ohci_game_controller_device>;
+
+ohci_game_controller_device::ohci_game_controller_device(const machine_config &mconfig, const char *tag, device_t *owner, UINT32 clock) :
+	device_t(mconfig, OHCI_GAME_CONTROLLER, "OHCI Game Controller", tag, owner, clock, "ohci_gc", __FILE__),
+	ohci_function_device(),
+	m_ThumbstickLh(*this, "ThumbstickLh"),
+	m_ThumbstickLv(*this, "ThumbstickLv"),
+	m_ThumbstickRh(*this, "ThumbstickRh"),
+	m_ThumbstickRv(*this, "ThumbstickRv"),
+	m_DPad(*this, "DPad"),
+	m_TriggerL(*this, "TriggerL"),
+	m_TriggerR(*this, "TriggerR"),
+	m_Buttons(*this, "Buttons"),
+	m_AGreen(*this, "AGreen"),
+	m_BRed(*this, "BRed"),
+	m_XBlue(*this, "XBlue"),
+	m_YYellow(*this, "YYellow"),
+	m_Black(*this, "Black"),
+	m_White(*this, "White")
 {
+}
+
+void ohci_game_controller_device::initialize(running_machine &machine, ohci_usb_controller *usb_bus_manager)
+{
+	ohci_function_device::initialize(machine, usb_bus_manager);
 	add_device_descriptor(devdesc);
 	add_configuration_descriptor(condesc);
 	add_interface_descriptor(intdesc);
@@ -1494,150 +1913,109 @@ ohci_game_controller_device::ohci_game_controller_device(running_machine &machin
 
 int ohci_game_controller_device::handle_nonstandard_request(int endpoint, USBSetupPacket *setup)
 {
-	//                              >=8  ==42  !=0  !=0  1,3       2<20 <=20
-	static const UINT8 mytestdata[16] = { 0x10,0x42 ,0x32,0x43,1   ,0x65,0x18,0x20,0x98,0xa9,0xba,0xcb,0xdc,0xed,0xfe };
+	//                                    >=8  ==42  !=0  !=0  1,3       2<20 <=20
+	static const UINT8 reportinfo[16] = { 0x10,0x42 ,0x32,0x43,1   ,0x65,0x14,0x20,0x98,0xa9,0xba,0xcb,0xdc,0xed,0xfe };
 
 	if (endpoint != 0)
 		return -1;
 	if ((endpoints[endpoint].controltype == VendorType) && (endpoints[endpoint].controlrecipient == InterfaceRecipient))
 	{
-		if (setup->bRequest == GET_DESCRIPTOR)
+		if ((setup->bRequest == GET_DESCRIPTOR) && (setup->wValue == 0x4200))
 		{
-			if (setup->wValue == 0x4200)
-			{
-				endpoints[endpoint].position = (UINT8 *)mytestdata;
-				endpoints[endpoint].remain = 16;
-				return 0;
-			}
+			endpoints[endpoint].position = (UINT8 *)reportinfo;
+			endpoints[endpoint].remain = 16;
+			return 0;
+		}
+	}
+	if ((endpoints[endpoint].controltype == ClassType) && (endpoints[endpoint].controlrecipient == InterfaceRecipient))
+	{
+		if ((setup->bRequest == 1) && (setup->wValue == 0x0100))
+		{
+			endpoints[endpoint].position = endpoints[endpoint].buffer;
+			endpoints[endpoint].remain = setup->wLength;
+			for (int n = 0; n < setup->wLength; n++)
+				endpoints[endpoint].buffer[n] = 0x10 ^ n;
+			endpoints[endpoint].buffer[2] = 0;
+			return 0;
+		}
+	}
+	if ((endpoints[endpoint].controltype == VendorType) && (endpoints[endpoint].controlrecipient == InterfaceRecipient))
+	{
+		if ((setup->bRequest == 1) && (setup->wValue == 0x0200))
+		{
+			endpoints[endpoint].position = endpoints[endpoint].buffer;
+			endpoints[endpoint].remain = setup->wLength;
+			for (int n = 0; n < setup->wLength; n++)
+				endpoints[endpoint].buffer[n] = 0x20 ^ n;
+			return 0;
+		}
+	}
+	if ((endpoints[endpoint].controltype == VendorType) && (endpoints[endpoint].controlrecipient == InterfaceRecipient))
+	{
+		if ((setup->bRequest == 1) && (setup->wValue == 0x0100))
+		{
+			endpoints[endpoint].position = endpoints[endpoint].buffer;
+			endpoints[endpoint].remain = setup->wLength;
+			for (int n = 0; n < setup->wLength; n++)
+				endpoints[endpoint].buffer[n] = 0x30 ^ n;
+			return 0;
 		}
 	}
 	return -1;
 }
 
-void xbox_base_state::usb_ohci_interrupts()
+int ohci_game_controller_device::handle_interrupt_pid(int endpoint, int pid, UINT8 *buffer, int size)
 {
-	if (((ohcist.hc_regs[HcInterruptStatus] & ohcist.hc_regs[HcInterruptEnable]) != 0) && ((ohcist.hc_regs[HcInterruptEnable] & MasterInterruptEnable) != 0))
-		xbox_base_devs.pic8259_1->ir1_w(1);
-	else
-		xbox_base_devs.pic8259_1->ir1_w(0);
+	if ((endpoint == 2) && (pid == InPid)) {
+		int v;
+
+		buffer[0] = 0;
+		buffer[1] = 20;
+		v = m_DPad->read();
+		v = v | (m_Buttons->read() << 4);
+		buffer[2] = (UINT8)v;
+		buffer[3] = 0;
+		buffer[4] = m_AGreen->read();
+		buffer[5] = m_BRed->read();
+		buffer[6] = m_XBlue->read();
+		buffer[7] = m_YYellow->read();
+		buffer[8] = m_Black->read();
+		buffer[9] = m_White->read();
+		buffer[10] = m_TriggerL->read();
+		buffer[11] = m_TriggerR->read();
+		v = m_ThumbstickLh->read();
+		v = (v - 128) * 256;
+		buffer[12] = (UINT16)v & 255;
+		buffer[13] = (UINT16)v >> 8;
+		v = m_ThumbstickLv->read();
+		v = (v - 128) * 256;
+		buffer[14] = (UINT16)v & 255;
+		buffer[15] = (UINT16)v >> 8;
+		v = m_ThumbstickRh->read();
+		v = (v - 128) * 256;
+		buffer[16] = (UINT16)v & 255;
+		buffer[17] = (UINT16)v >> 8;
+		v = m_ThumbstickRv->read();
+		v = (v - 128) * 256;
+		buffer[18] = (UINT16)v & 255;
+		buffer[19] = (UINT16)v >> 8;
+		return size;
+	}
+	return -1;
 }
 
-void xbox_base_state::usb_ohci_read_endpoint_descriptor(UINT32 address)
+void ohci_game_controller_device::device_start()
 {
-	UINT32 w;
-
-	w = ohcist.space->read_dword(address);
-	ohcist.endpoint_descriptor.word0 = w;
-	ohcist.endpoint_descriptor.fa = w & 0x7f;
-	ohcist.endpoint_descriptor.en = (w >> 7) & 15;
-	ohcist.endpoint_descriptor.d = (w >> 11) & 3;
-	ohcist.endpoint_descriptor.s = (w >> 13) & 1;
-	ohcist.endpoint_descriptor.k = (w >> 14) & 1;
-	ohcist.endpoint_descriptor.f = (w >> 15) & 1;
-	ohcist.endpoint_descriptor.mps = (w >> 16) & 0x7ff;
-	ohcist.endpoint_descriptor.tailp = ohcist.space->read_dword(address + 4);
-	w = ohcist.space->read_dword(address + 8);
-	ohcist.endpoint_descriptor.headp = w & 0xfffffffc;
-	ohcist.endpoint_descriptor.h = w & 1;
-	ohcist.endpoint_descriptor.c = (w >> 1) & 1;
-	ohcist.endpoint_descriptor.nexted = ohcist.space->read_dword(address + 12);
 }
 
-void xbox_base_state::usb_ohci_writeback_endpoint_descriptor(UINT32 address)
+ioport_constructor ohci_game_controller_device::device_input_ports() const
 {
-	UINT32 w;
-
-	w = ohcist.endpoint_descriptor.word0 & 0xf8000000;
-	w = w | (ohcist.endpoint_descriptor.mps << 16) | (ohcist.endpoint_descriptor.f << 15) | (ohcist.endpoint_descriptor.k << 14) | (ohcist.endpoint_descriptor.s << 13) | (ohcist.endpoint_descriptor.d << 11) | (ohcist.endpoint_descriptor.en << 7) | ohcist.endpoint_descriptor.fa;
-	ohcist.space->write_dword(address, w);
-	w = ohcist.endpoint_descriptor.headp | (ohcist.endpoint_descriptor.c << 1) | ohcist.endpoint_descriptor.h;
-	ohcist.space->write_dword(address + 8, w);
+	return INPUT_PORTS_NAME(xbox_controller);
 }
 
-void xbox_base_state::usb_ohci_read_transfer_descriptor(UINT32 address)
+WRITE_LINE_MEMBER(xbox_base_state::xbox_ohci_usb_interrupt_changed)
 {
-	UINT32 w;
-
-	w = ohcist.space->read_dword(address);
-	ohcist.transfer_descriptor.word0 = w;
-	ohcist.transfer_descriptor.cc = (w >> 28) & 15;
-	ohcist.transfer_descriptor.ec= (w >> 26) & 3;
-	ohcist.transfer_descriptor.t= (w >> 24) & 3;
-	ohcist.transfer_descriptor.di= (w >> 21) & 7;
-	ohcist.transfer_descriptor.dp= (w >> 19) & 3;
-	ohcist.transfer_descriptor.r = (w >> 18) & 1;
-	ohcist.transfer_descriptor.cbp = ohcist.space->read_dword(address + 4);
-	ohcist.transfer_descriptor.nexttd = ohcist.space->read_dword(address + 8);
-	ohcist.transfer_descriptor.be = ohcist.space->read_dword(address + 12);
-}
-
-void xbox_base_state::usb_ohci_writeback_transfer_descriptor(UINT32 address)
-{
-	UINT32 w;
-
-	w = ohcist.transfer_descriptor.word0 & 0x0003ffff;
-	w = w | (ohcist.transfer_descriptor.cc << 28) | (ohcist.transfer_descriptor.ec << 26) | (ohcist.transfer_descriptor.t << 24) | (ohcist.transfer_descriptor.di << 21) | (ohcist.transfer_descriptor.dp << 19) | (ohcist.transfer_descriptor.r << 18);
-	ohcist.space->write_dword(address, w);
-	ohcist.space->write_dword(address + 4, ohcist.transfer_descriptor.cbp);
-	ohcist.space->write_dword(address + 8, ohcist.transfer_descriptor.nexttd);
-}
-
-void xbox_base_state::usb_ohci_read_isochronous_transfer_descriptor(UINT32 address)
-{
-	UINT32 w;
-
-	w = ohcist.space->read_dword(address);
-	ohcist.isochronous_transfer_descriptor.word0 = w;
-	ohcist.isochronous_transfer_descriptor.cc = (w >> 28) & 15;
-	ohcist.isochronous_transfer_descriptor.fc = (w >> 24) & 7;
-	ohcist.isochronous_transfer_descriptor.di = (w >> 21) & 7;
-	ohcist.isochronous_transfer_descriptor.sf = w & 0xffff;
-	w = ohcist.space->read_dword(address + 4);
-	ohcist.isochronous_transfer_descriptor.word1 = w;
-	ohcist.isochronous_transfer_descriptor.bp0 = w & 0xfffff000;
-	ohcist.isochronous_transfer_descriptor.nexttd = ohcist.space->read_dword(address + 8);
-	ohcist.isochronous_transfer_descriptor.be = ohcist.space->read_dword(address + 12);
-	w = ohcist.space->read_dword(address + 16);
-	ohcist.isochronous_transfer_descriptor.offset[0] = w & 0xffff;
-	ohcist.isochronous_transfer_descriptor.offset[1] = (w >> 16) & 0xffff;
-	w = ohcist.space->read_dword(address + 20);
-	ohcist.isochronous_transfer_descriptor.offset[2] = w & 0xffff;
-	ohcist.isochronous_transfer_descriptor.offset[3] = (w >> 16) & 0xffff;
-	w = ohcist.space->read_dword(address + 24);
-	ohcist.isochronous_transfer_descriptor.offset[4] = w & 0xffff;
-	ohcist.isochronous_transfer_descriptor.offset[5] = (w >> 16) & 0xffff;
-	w = ohcist.space->read_dword(address + 28);
-	ohcist.isochronous_transfer_descriptor.offset[6] = w & 0xffff;
-	ohcist.isochronous_transfer_descriptor.offset[7] = (w >> 16) & 0xffff;
-}
-
-void xbox_base_state::usb_ohci_writeback_isochronous_transfer_descriptor(UINT32 address)
-{
-	UINT32 w;
-
-	w = ohcist.isochronous_transfer_descriptor.word0 & 0x1f0000;
-	w = w | (ohcist.isochronous_transfer_descriptor.cc << 28) | (ohcist.isochronous_transfer_descriptor.fc << 24) | (ohcist.isochronous_transfer_descriptor.di << 21) | ohcist.isochronous_transfer_descriptor.sf;
-	ohcist.space->write_dword(address, w);
-	w = ohcist.isochronous_transfer_descriptor.word1 & 0xfff;
-	w = w | ohcist.isochronous_transfer_descriptor.bp0;
-	ohcist.space->write_dword(address + 4, w);
-	ohcist.space->write_dword(address + 8, ohcist.isochronous_transfer_descriptor.nexttd);
-	ohcist.space->write_dword(address + 12, ohcist.isochronous_transfer_descriptor.be);
-	w = (ohcist.isochronous_transfer_descriptor.offset[1] << 16) | ohcist.isochronous_transfer_descriptor.offset[0];
-	ohcist.space->write_dword(address + 16, w);
-	w = (ohcist.isochronous_transfer_descriptor.offset[3] << 16) | ohcist.isochronous_transfer_descriptor.offset[2];
-	ohcist.space->write_dword(address + 20, w);
-	w = (ohcist.isochronous_transfer_descriptor.offset[5] << 16) | ohcist.isochronous_transfer_descriptor.offset[4];
-	ohcist.space->write_dword(address + 24, w);
-	w = (ohcist.isochronous_transfer_descriptor.offset[7] << 16) | ohcist.isochronous_transfer_descriptor.offset[6];
-	ohcist.space->write_dword(address + 28, w);
-}
-
-void xbox_base_state::usb_ohci_device_address_changed(int old_address, int new_address)
-{
-	ohcist.address[new_address].function = ohcist.address[old_address].function;
-	ohcist.address[new_address].port = ohcist.address[old_address].port;
-	ohcist.address[old_address].port = -1;
+	xbox_base_devs.pic8259_1->ir1_w(state);
 }
 
 /*
@@ -1982,12 +2360,19 @@ int xbox_base_state::smbus_cx25871(int command, int rw, int data)
 	return 0;
 }
 
-// let's try to fake the missing eeprom
-static int dummyeeprom[256] = { 0x94,0x18,0x10,0x59,0x83,0x58,0x15,0xDA,0xDF,0xCC,0x1D,0x78,0x20,0x8A,0x61,0xB8,0x08,0xB4,0xD6,0xA8,
-0x9E,0x77,0x9C,0xEB,0xEA,0xF8,0x93,0x6E,0x3E,0xD6,0x9C,0x49,0x6B,0xB5,0x6E,0xAB,0x6D,0xBC,0xB8,0x80,0x68,0x9D,0xAA,0xCD,0x0B,0x83,
-0x17,0xEC,0x2E,0xCE,0x35,0xA8,0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38,0x39,0x61,0x62,0x63,0xAA,0xBB,0xCC,0xDD,0xEE,0xFF,0x00,0x00,
-0x4F,0x6E,0x6C,0x69,0x6E,0x65,0x6B,0x65,0x79,0x69,0x6E,0x76,0x61,0x6C,0x69,0x64,0x00,0x03,0x80,0x00,0x00,0x00,0x00,0x00,0xFF,0xFF,
-0xFF,0xFF,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00 };
+// let's try to fake the missing eeprom, make sure its ntsc
+static int dummyeeprom[256] = {
+	0x39, 0xe3, 0xcc, 0x81, 0xb0, 0xa9, 0x97, 0x09, 0x57, 0xac, 0x57, 0x12,	0xf7, 0xc2, 0xc0, 0x21, 0xce, 0x0d, 0x0a, 0xdb, 0x20, 0x7a, 0xf3, 0xff,
+	0xdf, 0x67, 0xed, 0xf4, 0xf8, 0x95, 0x5c, 0xd0, 0x9b, 0xef, 0x7b, 0x81,	0xda, 0xd5, 0x98, 0xc1, 0xb1, 0xb3, 0x74, 0x18, 0x86, 0x05, 0xe2, 0x7c,
+	0xd1, 0xad, 0xc9, 0x90, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,	0x38, 0x39, 0x41, 0x42, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x00, 0x00,
+	0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0xab, 0xcd, 0xef, 0xba, 0xdc, 0xfe,	0xa1, 0xb2, 0xc3, 0xd3, 0x00, 0x01, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,	0x00, 0x00, 0x00, 0x00 };
 
 int smbus_callback_eeprom(xbox_base_state &chs, int command, int rw, int data)
 {
@@ -2076,11 +2461,44 @@ WRITE32_MEMBER(xbox_base_state::smbus_w)
 	}
 	if ((offset == 2) && (mem_mask == 0xff)) // 8 smbus command
 		smbusst.command = data;
+	//if ((offset == 2) && (mem_mask == 0x00ff0000)) ;
+}
+
+READ32_MEMBER(xbox_base_state::smbus2_r)
+{
+	return 0;
+}
+
+WRITE32_MEMBER(xbox_base_state::smbus2_w)
+{
+}
+
+/*
+* Ethernet controller
+*/
+
+READ32_MEMBER(xbox_base_state::network_r)
+{
+	return 0;
+}
+
+WRITE32_MEMBER(xbox_base_state::network_w)
+{
+}
+
+READ32_MEMBER(xbox_base_state::networkio_r)
+{
+	return 0;
+}
+
+WRITE32_MEMBER(xbox_base_state::networkio_w)
+{
 }
 
 /*
  * SuperIO
  */
+
 READ8_MEMBER(xbox_base_state::superio_read)
 {
 	if (superiost.configuration_mode == false)
@@ -2148,13 +2566,45 @@ WRITE8_MEMBER(xbox_base_state::superiors232_write)
 	}
 }
 
+READ32_MEMBER(xbox_base_state::ohci_usb_r)
+{
+#ifdef USB_HACK_ENABLED
+	if (offset == 0) { /* hacks needed until usb (and jvs) is implemented */
+		hack_usb();
+	}
+#endif
+	return ohci_usb->read(space, offset, mem_mask);
+}
+
+WRITE32_MEMBER(xbox_base_state::ohci_usb_w)
+{
+#ifndef USB_HACK_ENABLED
+	ohci_usb->write(space, offset, mem_mask);
+#endif
+}
+
+READ32_MEMBER(xbox_base_state::ohci_usb2_r)
+{
+	return 0;
+}
+
+WRITE32_MEMBER(xbox_base_state::ohci_usb2_w)
+{
+}
+
 ADDRESS_MAP_START(xbox_base_map, AS_PROGRAM, 32, xbox_base_state)
 	AM_RANGE(0x00000000, 0x07ffffff) AM_RAM AM_SHARE("nv2a_share") // 128 megabytes
 	AM_RANGE(0xf0000000, 0xf7ffffff) AM_RAM AM_SHARE("nv2a_share") // 3d accelerator wants this
 	AM_RANGE(0xfd000000, 0xfdffffff) AM_RAM AM_READWRITE(geforce_r, geforce_w)
-	AM_RANGE(0xfed00000, 0xfed003ff) AM_READWRITE(usbctrl_r, usbctrl_w)
-	AM_RANGE(0xfe800000, 0xfe85ffff) AM_READWRITE(audio_apu_r, audio_apu_w)
-	AM_RANGE(0xfec00000, 0xfec001ff) AM_READWRITE(audio_ac93_r, audio_ac93_w)
+#ifdef USB_HACK_ENABLED
+	AM_RANGE(0xfed00000, 0xfed003ff) AM_READWRITE(ohci_usb_r, ohci_usb_w)
+#else
+	AM_RANGE(0xfed00000, 0xfed00fff) AM_DEVREADWRITE("ohci_usb", ohci_usb_controller, read, write)
+#endif
+	AM_RANGE(0xfed08000, 0xfed08fff) AM_READWRITE(ohci_usb2_r, ohci_usb2_w)
+	AM_RANGE(0xfe800000, 0xfe87ffff) AM_READWRITE(audio_apu_r, audio_apu_w)
+	AM_RANGE(0xfec00000, 0xfec00fff) AM_READWRITE(audio_ac93_r, audio_ac93_w)
+	AM_RANGE(0xfef00000, 0xfef003ff) AM_READWRITE(network_r, network_w)
 	AM_RANGE(0xff000000, 0xff0fffff) AM_ROM AM_REGION("bios", 0) AM_MIRROR(0x00f80000)
 ADDRESS_MAP_END
 
@@ -2166,9 +2616,11 @@ ADDRESS_MAP_START(xbox_base_map_io, AS_IO, 32, xbox_base_state)
 	AM_RANGE(0x01f0, 0x01f7) AM_DEVREADWRITE("ide", bus_master_ide_controller_device, read_cs0, write_cs0)
 	AM_RANGE(0x03f8, 0x03ff) AM_READWRITE8(superiors232_read, superiors232_write, 0xffffffff)
 	AM_RANGE(0x0cf8, 0x0cff) AM_DEVREADWRITE("pcibus", pci_bus_legacy_device, read, write)
-	AM_RANGE(0x8000, 0x80ff) AM_READWRITE(dummy_r, dummy_w)
-	AM_RANGE(0xc000, 0xc0ff) AM_READWRITE(smbus_r, smbus_w)
-	AM_RANGE(0xff60, 0xff67) AM_DEVREADWRITE("ide", bus_master_ide_controller_device, bmdma_r, bmdma_w)
+	AM_RANGE(0x8000, 0x80ff) AM_READWRITE(dummy_r, dummy_w) // lpc bridge
+	AM_RANGE(0xc000, 0xc00f) AM_READWRITE(smbus_r, smbus_w)
+	AM_RANGE(0xc200, 0xc21f) AM_READWRITE(smbus2_r, smbus2_w)
+	AM_RANGE(0xe000, 0xe007) AM_READWRITE(networkio_r, networkio_w)
+	AM_RANGE(0xff60, 0xff6f) AM_DEVREADWRITE("ide", bus_master_ide_controller_device, bmdma_r, bmdma_w)
 ADDRESS_MAP_END
 
 void xbox_base_state::machine_start()
@@ -2178,7 +2630,7 @@ void xbox_base_state::machine_start()
 	nvidia_nv2a = std::make_unique<nv2a_renderer>(machine());
 	memset(pic16lc_buffer, 0, sizeof(pic16lc_buffer));
 	pic16lc_buffer[0] = 'B';
-	pic16lc_buffer[4] = 0; // A/V connector, 2=vga
+	pic16lc_buffer[4] = 0; // A/V connector, 0=scart 2=vga 4=svideo 7=none
 	smbus_register_device(0x10, smbus_callback_pic16lc);
 	smbus_register_device(0x45, smbus_callback_cx25871);
 	smbus_register_device(0x54, smbus_callback_eeprom);
@@ -2196,31 +2648,20 @@ void xbox_base_state::machine_start()
 	apust.timer = machine().scheduler().timer_alloc(timer_expired_delegate(FUNC(xbox_base_state::audio_apu_timer), this), (void *)"APU Timer");
 	apust.timer->enable(false);
 	if (machine().debug_flags & DEBUG_FLAG_ENABLED)
-		debug_console_register_command(machine(), "xbox", CMDFLAG_NONE, 0, 1, 4, xbox_debug_commands);
-	memset(&ohcist, 0, sizeof(ohcist));
+	{
+		using namespace std::placeholders;
+		machine().debugger().console().register_command("xbox", CMDFLAG_NONE, 0, 1, 4, std::bind(&xbox_base_state::xbox_debug_commands, this, _1, _2, _3));
+	}
 	// PIC challenge handshake data
 	pic16lc_buffer[0x1c] = 0x0c;
 	pic16lc_buffer[0x1d] = 0x0d;
 	pic16lc_buffer[0x1e] = 0x0e;
 	pic16lc_buffer[0x1f] = 0x0f;
 	// usb
-	ohcist.hc_regs[HcRevision] = 0x10;
-	ohcist.hc_regs[HcFmInterval] = 0x2edf;
-	ohcist.hc_regs[HcLSThreshold] = 0x628;
-	ohcist.hc_regs[HcRhDescriptorA] = 4;
-	ohcist.hc_regs[HcControl] = UsbReset << 6;
-	ohcist.state = UsbReset;
-	ohcist.interruptbulkratio = 1;
-	ohcist.writebackdonehadcounter = 7;
-	for (int n = 0; n <= 4; n++)
-		ohcist.ports[n].address = -1;
-	for (int n = 0; n < 256; n++)
-		ohcist.address[n].port = -1;
-	ohcist.space = &m_maincpu->space();
-	ohcist.timer = machine().scheduler().timer_alloc(timer_expired_delegate(FUNC(xbox_base_state::usb_ohci_timer), this), (void *)"USB OHCI Timer");
-	ohcist.timer->enable(false);
-	usb_device = new ohci_game_controller_device(machine(), this);
-	usb_ohci_plug(3, usb_device); // connect to root hub port 3, chihiro needs to use 1 and 2
+	ohci_usb = machine().device<ohci_usb_controller>("ohci_usb");
+	usb_device = machine().device<ohci_game_controller_device>("ohci_gamepad");
+	usb_device->initialize(machine(), ohci_usb);
+	ohci_usb->usb_ohci_plug(3, usb_device); // connect to root hub port 3, chihiro needs to use 1 and 2
 	// super-io
 	memset(&superiost, 0, sizeof(superiost));
 	superiost.configuration_mode = false;
@@ -2253,7 +2694,7 @@ MACHINE_CONFIG_START(xbox_base, xbox_base_state)
 
 	MCFG_PCI_BUS_LEGACY_ADD("pcibus", 0)
 	MCFG_PCI_BUS_LEGACY_DEVICE(0, "PCI Bridge Device - Host Bridge", pcibridghostbridg_pci_r, pcibridghostbridg_pci_w)
-	MCFG_PCI_BUS_LEGACY_DEVICE(1, "HUB Interface - ISA Bridge", hubintisabridg_pci_r, hubintisabridg_pci_w)
+	MCFG_PCI_BUS_LEGACY_DEVICE(1, "HUB Interface - ISA Bridge", hubintisabridg_pci_r, hubintisabridg_pci_w) // function 0 lpc function 1 smbus
 	MCFG_PCI_BUS_LEGACY_DEVICE(2, "OHCI USB Controller 1", dummy_pci_r, dummy_pci_w)
 	MCFG_PCI_BUS_LEGACY_DEVICE(3, "OHCI USB Controller 2", dummy_pci_r, dummy_pci_w)
 	MCFG_PCI_BUS_LEGACY_DEVICE(4, "MCP Networking Adapter", dummy_pci_r, dummy_pci_w)
@@ -2265,7 +2706,7 @@ MACHINE_CONFIG_START(xbox_base, xbox_base_state)
 	MCFG_PCI_BUS_LEGACY_SIBLING("pcibus")
 	MCFG_PCI_BUS_LEGACY_DEVICE(0, "NV2A GeForce 3MX Integrated GPU/Northbridge", geforce_pci_r, geforce_pci_w)
 	MCFG_PIC8259_ADD("pic8259_1", WRITELINE(xbox_base_state, xbox_pic8259_1_set_int_line), VCC, READ8(xbox_base_state, get_slave_ack))
-	MCFG_PIC8259_ADD("pic8259_2", DEVWRITELINE("pic8259_1", pic8259_device, ir2_w), GND, NULL)
+	MCFG_PIC8259_ADD("pic8259_2", DEVWRITELINE("pic8259_1", pic8259_device, ir2_w), GND, NOOP)
 
 	MCFG_DEVICE_ADD("pit8254", PIT8254, 0)
 	MCFG_PIT8253_CLK0(1125000) /* heartbeat IRQ */
@@ -2277,6 +2718,11 @@ MACHINE_CONFIG_START(xbox_base, xbox_base_state)
 	MCFG_DEVICE_ADD("ide", BUS_MASTER_IDE_CONTROLLER, 0)
 	MCFG_ATA_INTERFACE_IRQ_HANDLER(DEVWRITELINE("pic8259_2", pic8259_device, ir6_w))
 	MCFG_BUS_MASTER_IDE_CONTROLLER_SPACE("maincpu", AS_PROGRAM)
+
+	// next line is temporary
+	MCFG_OHCI_USB_CONTROLLER_ADD("ohci_usb")
+	MCFG_OHCI_USB_CONTROLLER_INTERRUPT_HANDLER(WRITELINE(xbox_base_state, xbox_ohci_usb_interrupt_changed))
+	MCFG_DEVICE_ADD("ohci_gamepad", OHCI_GAME_CONTROLLER, 0)
 
 	/* video hardware */
 	MCFG_SCREEN_ADD("screen", RASTER)

@@ -709,8 +709,26 @@ Pixel clock is 16MHz, hsync is every 656 pixels, cpu clock is 10MHz.
 So that's 656*10/16=410 cpu clocks per hsync, or 410*512=209902 total.
 With 26 cycles per loop, that's 8073 loops.  Freeplay it is.
 
-So, now what?  Maybe the cpu is 8Mhz, maybe there's a wait time on the
-a00000 access. 
+--- Update from Charles MacDonald ---
+
+I ran some tests. For the two CPUs, A (68000) and B (FD1094), normally
+there are no wait states when CPU A accesses $A00000. As that address
+is on CPU A's bus, CPU B's accesses to it take twice as long (eight 10 MHz
+clocks instead of four) due to contention. The only exception is when
+CPU A is completely idle from a STOP instruction, at which point CPU B
+can access that memory at full speed (four clocks per access).
+
+Assuming Gain Ground has CPU A running code out of BIOS ROM or work RAM,
+and CPU B is running out of work RAM, then each one of those $A00000
+accesses will eat up double the time.
+
+The other factor is DRAM refresh for the work RAM, both CPUs have some
+memory access stretched out by four cycles every 19 to 20 ms. It looks
+like both DRAM banks are refreshed in parallel which seems to explain
+why refresh on CPU A's bus doesn't count as contention for CPU B and
+vice-versa. So there's only refresh event that eats up time for both
+CPUs to worry about.
+
 
 
 */
@@ -731,8 +749,8 @@ void segas24_state::reset_reset()
 		if(resetcontrol & 2) {
 			m_subcpu->set_input_line(INPUT_LINE_HALT, CLEAR_LINE);
 			m_subcpu->set_input_line(INPUT_LINE_RESET, PULSE_LINE);
-//          osd_printf_debug("enable 2nd cpu!\n");
-//          debugger_break(machine);
+			//osd_printf_debug("enable 2nd cpu!\n");
+			//machine().debug_break();
 			if (m_gground_hack_timer)
 			{
 				m_subcpu->set_clock_scale(0.7f); // reduce clock speed temporarily so a check passes, see notes above
@@ -759,7 +777,7 @@ void segas24_state::reset_control_w(UINT8 data)
 
 void segas24_state::reset_bank()
 {
-	if (m_romboard != NULL)
+	if (m_romboard != nullptr)
 	{
 		membank("bank1")->set_entry(curbank & 15);
 		membank("bank2")->set_entry(curbank & 15);
@@ -1308,7 +1326,7 @@ void segas24_state::machine_start()
 	if (track_size)
 		machine().device<nvram_device>("floppy_nvram")->set_base(memregion("floppy")->base(), 2*track_size);
 
-	if (m_romboard != NULL)
+	if (m_romboard != nullptr)
 	{
 		UINT8 *usr1 = m_romboard->base();
 		membank("bank1")->configure_entries(0, 16, usr1, 0x40000);

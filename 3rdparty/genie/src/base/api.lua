@@ -84,12 +84,6 @@
 			scope = "config",
 		},
 
-		debugabsolutedir =
-		{
-			kind = "string",
-			scope = "config",
-		},
-
 		debugenvs  =
 		{
 			kind = "list",
@@ -121,6 +115,12 @@
 			scope = "config",
 		},
 
+		nopch =
+		{
+			kind  = "filelist",
+			scope = "config",
+		},
+
 		files =
 		{
 			kind  = "filelist",
@@ -143,20 +143,25 @@
 
 				local allowed_flags = {
 					ATL = 1,
+					C7DebugInfo = 1,
 					DebugEnvsDontMerge = 1,
 					DebugEnvsInherit = 1,
 					DeploymentContent = 1,
 					EnableMinimalRebuild = 1,
 					EnableSSE = 1,
 					EnableSSE2 = 1,
+					EnableAVX = 1,
+					EnableAVX2 = 1,
 					ExtraWarnings = 1,
 					FatalWarnings = 1,
 					FloatFast = 1,
 					FloatStrict = 1,
 					Managed = 1,
+					MinimumWarnings = 1,
 					MFC = 1,
 					NativeWChar = 1,
 					No64BitChecks = 1,
+					NoBufferSecurityCheck = 1,
 					NoEditAndContinue = 1,
 					NoExceptions = 1,
 					NoFramePointer = 1,
@@ -167,6 +172,8 @@
 					NoNativeWChar = 1,
 					NoPCH = 1,
 					NoRTTI = 1,
+					NoWinMD = 1,    -- explicitly disables Windows Metadata
+					NoWinRT = 1,    -- explicitly disables Windows Runtime Extension
 					FastCall = 1,
 					StdCall = 1,
 					SingleOutputDir = 1,
@@ -182,6 +189,7 @@
 					Unicode = 1,
 					Unsafe = 1,
 					UnsignedChar = 1,
+					UseFullPaths = 1,
 					WinMain = 1,
 				}
 
@@ -223,7 +231,7 @@
 			kind  = "string",
 			scope = "project",
 		},
-		
+
 		windowstargetplatformminversion =
 		{
 			kind = "string",
@@ -285,6 +293,13 @@
 			usagecopy = true,
 		},
 
+		userincludedirs =
+		{
+			kind  = "dirlist",
+			scope = "config",
+			usagecopy = true,
+		},
+
 		kind =
 		{
 			kind  = "string",
@@ -304,7 +319,8 @@
 			allowed = {
 				"C",
 				"C++",
-				"C#"
+				"C#",
+				"Vala",
 			}
 		},
 
@@ -633,10 +649,10 @@
 		end
 
 		if t == "solution" then
-			if type(container) == "project" then
+			if typex(container) == "project" then
 				container = container.solution
 			end
-			if type(container) ~= "solution" then
+			if typex(container) ~= "solution" then
 				container = nil
 			end
 		end
@@ -1035,19 +1051,19 @@
 	function usage(name)
 		if (not name) then
 			--Only return usage projects.
-			if(type(premake.CurrentContainer) ~= "project") then return nil end
+			if(typex(premake.CurrentContainer) ~= "project") then return nil end
 			if(not premake.CurrentContainer.usage) then return nil end
 			return premake.CurrentContainer
 		end
 
 		-- identify the parent solution
 		local sln
-		if (type(premake.CurrentContainer) == "project") then
+		if (typex(premake.CurrentContainer) == "project") then
 			sln = premake.CurrentContainer.solution
 		else
 			sln = premake.CurrentContainer
 		end
-		if (type(sln) ~= "solution") then
+		if (typex(sln) ~= "solution") then
 			error("no active solution", 2)
 		end
 
@@ -1069,19 +1085,19 @@
 	function project(name)
 		if (not name) then
 			--Only return non-usage projects
-			if(type(premake.CurrentContainer) ~= "project") then return nil end
+			if(typex(premake.CurrentContainer) ~= "project") then return nil end
 			if(premake.CurrentContainer.usage) then return nil end
 			return premake.CurrentContainer
 		end
 
 		-- identify the parent solution
 		local sln
-		if (type(premake.CurrentContainer) == "project") then
+		if (typex(premake.CurrentContainer) == "project") then
 			sln = premake.CurrentContainer.solution
 		else
 			sln = premake.CurrentContainer
 		end
-		if (type(sln) ~= "solution") then
+		if (typex(sln) ~= "solution") then
 			error("no active solution", 2)
 		end
 
@@ -1101,7 +1117,7 @@
 
 	function solution(name)
 		if not name then
-			if type(premake.CurrentContainer) == "project" then
+			if typex(premake.CurrentContainer) == "project" then
 				return premake.CurrentContainer.solution
 			else
 				return premake.CurrentContainer

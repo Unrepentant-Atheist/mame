@@ -14,7 +14,7 @@
 #if defined(OSD_SDL)
 
 // standard sdl header
-#include "sdlinc.h"
+#include <SDL2/SDL.h>
 #include <ctype.h>
 #include <stddef.h>
 #include <mutex>
@@ -23,7 +23,7 @@
 // MAME headers
 #include "emu.h"
 #include "osdepend.h"
-#include "ui/ui.h"
+#include "ui/uimain.h"
 #include "uiinput.h"
 #include "window.h"
 #include "strconv.h"
@@ -35,20 +35,19 @@
 #define GET_WINDOW(ev) window_from_id((ev)->windowID)
 //#define GET_WINDOW(ev) ((ev)->windowID)
 
-static inline sdl_window_info * window_from_id(Uint32 windowID)
+static inline std::shared_ptr<sdl_window_info> window_from_id(Uint32 windowID)
 {
-	sdl_window_info *w;
 	SDL_Window *window = SDL_GetWindowFromID(windowID);
 
-	for (w = sdl_window_list; w != NULL; w = w->m_next)
+	for (auto w : sdl_window_list)
 	{
 		//printf("w->window_id: %d\n", w->window_id);
-		if (w->sdl_window() == window)
+		if (w->platform_window<SDL_Window*>() == window)
 		{
 			return w;
 		}
 	}
-	return NULL;
+	return nullptr;
 }
 
 void sdl_event_manager::process_events(running_machine &machine)
@@ -65,16 +64,16 @@ void sdl_event_manager::process_events(running_machine &machine)
 		auto subscribers = m_subscription_index.equal_range(sdlevent.type);
 
 		// Dispatch the events
-		for (auto iter = subscribers.first; iter != subscribers.second; iter++)
+		for (auto iter = subscribers.first; iter != subscribers.second; ++iter)
 			iter->second->handle_event(sdlevent);
 	}
 }
 
 void sdl_event_manager::process_window_event(running_machine &machine, SDL_Event &sdlevent)
 {
-	sdl_window_info *window = GET_WINDOW(&sdlevent.window);
+	std::shared_ptr<sdl_window_info> window = GET_WINDOW(&sdlevent.window);
 
-	if (window == NULL)
+	if (window == nullptr)
 		return;
 
 	switch (sdlevent.window.event)
@@ -233,7 +232,14 @@ void sdl_osd_interface::customize_input_type_list(simple_list<input_type_entry> 
 			entry.configure_osd("INCREASE_PRESCALE", "Increase Prescaling");
 			entry.defseq(SEQ_TYPE_STANDARD).set(KEYCODE_F7, KEYCODE_LCONTROL);
 			break;
-			// add a Not lcrtl condition to the load state key
+
+		// lshift-lalt-F12 for fullscreen video (BGFX)
+		case IPT_OSD_8:
+			entry.configure_osd("RENDER_AVI", "Record Rendered Video");
+			entry.defseq(SEQ_TYPE_STANDARD).set(KEYCODE_F12, KEYCODE_LSHIFT, KEYCODE_LALT);
+			break;
+
+		// add a Not lcrtl condition to the load state key
 		case IPT_UI_LOAD_STATE:
 			entry.defseq(SEQ_TYPE_STANDARD).set(KEYCODE_F7, input_seq::not_code, KEYCODE_LCONTROL, input_seq::not_code, KEYCODE_LSHIFT);
 			break;
@@ -266,7 +272,9 @@ void sdl_osd_interface::poll_inputs(running_machine &machine)
 
 void sdl_osd_interface::release_keys()
 {
-	downcast<input_module_base*>(m_keyboard_input)->devicelist()->reset_devices();
+	auto keybd = dynamic_cast<input_module_base*>(m_keyboard_input);
+	if (keybd != nullptr)
+		keybd->devicelist()->reset_devices();
 }
 
 bool sdl_osd_interface::should_hide_mouse()

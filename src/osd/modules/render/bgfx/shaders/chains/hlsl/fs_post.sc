@@ -3,7 +3,7 @@ $input v_color0, v_texcoord0
 // license:BSD-3-Clause
 // copyright-holders:Ryan Holtz,ImJezze
 //-----------------------------------------------------------------------------
-// Defocus Effect
+// Scanline & Shadowmask Effect
 //-----------------------------------------------------------------------------
 
 #include "common.sh"
@@ -12,8 +12,9 @@ $input v_color0, v_texcoord0
 uniform vec4 u_swap_xy;
 uniform vec4 u_source_dims; // size of the guest machine
 uniform vec4 u_quad_dims;
-uniform vec4 u_screen_scale; // TODO: Hook up ScreenScale code-side
-uniform vec4 u_screen_offset; // TODO: Hook up ScreenOffset code-side
+uniform vec4 u_screen_scale;
+uniform vec4 u_screen_offset;
+// uniform vec4 u_back_color; // TODO
 
 // User-supplied
 uniform vec4 u_scanline_alpha;
@@ -23,6 +24,7 @@ uniform vec4 u_scanline_bright_offset;
 uniform vec4 u_scanline_jitter;
 uniform vec4 u_scanline_height;
 uniform vec4 u_scanline_variation;
+uniform vec4 u_shadow_tile_mode;
 uniform vec4 u_shadow_alpha;
 uniform vec4 u_shadow_count;
 uniform vec4 u_shadow_uv;
@@ -33,7 +35,7 @@ uniform vec4 u_power;
 uniform vec4 u_floor;
 
 // Parametric
-uniform vec4 u_time;
+uniform vec4 u_time; // milliseconds
 uniform vec4 u_jitter_amount;
 
 // Samplers
@@ -44,49 +46,51 @@ SAMPLER2D(s_shadow, 1);
 // Scanline & Shadowmask Pixel Shader
 //-----------------------------------------------------------------------------
 
-vec2 GetAdjustedCoords(vec2 coord, vec2 center_offset)
+vec2 GetAdjustedCoords(vec2 coord)
 {
 	// center coordinates
-	coord -= center_offset;
+	coord -= 0.5;
 
 	// apply screen scale
-	//coord /= u_screen_scale.xy;
+	coord *= u_screen_scale.xy;
 
 	// un-center coordinates
-	coord += center_offset;
+	coord += 0.5;
 
 	// apply screen offset
-	coord += (center_offset * 2.0) * u_screen_offset.xy;
+	coord += u_screen_offset.xy;
 
 	return coord;
 }
 
-// vector screen has the same quad texture coordinates for every screen orientation, raster screen differs
 vec2 GetShadowCoord(vec2 QuadCoord, vec2 SourceCoord)
 {
-	vec2 QuadTexel = vec2(1.0, 1.0) / u_quad_dims.xy;
-
-	vec2 canvasCoord = QuadCoord + u_shadow_uv_offset.xy / u_quad_dims.xy;
+	vec2 canvasCoord = u_shadow_tile_mode.x == 0.0
+		? QuadCoord + u_shadow_uv_offset.xy / u_quad_dims.xy
+		: SourceCoord + u_shadow_uv_offset.xy / u_source_dims.xy;
+	vec2 canvasTexelDims = u_shadow_tile_mode.x == 0.0
+		? vec2(1.0, 1.0) / u_quad_dims.xy
+		: vec2(1.0, 1.0) / u_source_dims.xy;
 
 	vec2 shadowUV = u_shadow_uv.xy;
 	vec2 shadowCount = u_shadow_count.xy;
 
-	// swap x/y vector and raster in screen mode (not source mode)
-	canvasCoord = u_swap_xy.x > 0.0
+	// swap x/y in screen mode (not source mode)
+	canvasCoord = u_shadow_tile_mode.x == 0.0 && u_swap_xy.x > 0.0
 		? canvasCoord.yx
 		: canvasCoord.xy;
 
-	// swap x/y vector and raster in screen mode (not source mode)
-	shadowCount = u_swap_xy.x > 0.0
+	// swap x/y in screen mode (not source mode)
+	shadowCount = u_shadow_tile_mode.x == 0.0 && u_swap_xy.x > 0.0
 		? shadowCount.yx
 		: shadowCount.xy;
 
-	vec2 shadowTile = QuadTexel * shadowCount;
+	vec2 shadowTile = canvasTexelDims * shadowCount;
 
 	vec2 shadowFrac = fract(canvasCoord / shadowTile);
 
-	// swap x/y raster in screen mode (not vector and not source mode)
-	shadowFrac = u_swap_xy.x > 0.0
+	// swap x/y in screen mode (not source mode)
+	shadowFrac = u_shadow_tile_mode.x == 0.0 && u_swap_xy.x > 0.0
 		? shadowFrac.yx
 		: shadowFrac.xy;
 
@@ -97,62 +101,77 @@ vec2 GetShadowCoord(vec2 QuadCoord, vec2 SourceCoord)
 
 void main()
 {
-	vec2 BaseCoord = GetAdjustedCoords(v_texcoord0, vec2(0.5, 0.5));
+	vec2 BaseCoord = GetAdjustedCoords(v_texcoord0);
 
 	// Color
 	vec4 BaseColor = texture2D(s_tex, BaseCoord);
 
-	if (BaseCoord.x < 0.0 || BaseCoord.y < 0.0)
+	// Clamp
+	if (BaseCoord.x < 0.0 || BaseCoord.y < 0.0 || BaseCoord.x > 1.0 || BaseCoord.y > 1.0)
 	{
-		BaseColor.rgb = vec3(0.0, 0.0, 0.0);
+		gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
 	}
-
-	// Mask Simulation
-	if (u_shadow_alpha.x > 0.0)
+	else
 	{
-		vec2 ShadowCoord = GetShadowCoord(v_texcoord0.xy, v_texcoord0.xy);
-		
-		vec4 ShadowColor = texture2D(s_shadow, ShadowCoord);
-		vec3 ShadowMaskColor = mix(vec3(1.0, 1.0, 1.0), ShadowColor.rgb, u_shadow_alpha.xxx);
+		// Mask Simulation
+		if (u_shadow_alpha.x > 0.0)
+		{
+			vec2 ShadowCoord = GetShadowCoord(v_texcoord0.xy, BaseCoord.xy);
 
-		// apply shadow mask color
-		BaseColor.rgb *= ShadowMaskColor;
+			vec4 ShadowColor = texture2D(s_shadow, ShadowCoord);
+			vec3 ShadowMaskColor = mix(vec3(1.0, 1.0, 1.0), ShadowColor.rgb, u_shadow_alpha.xxx);
+
+			// apply shadow mask color
+			BaseColor.rgb *= ShadowMaskColor;
+
+			// // TODO
+			// vec3 ShadowMaskClear = (1.0f - ShadowColor.a) * u_shadow_alpha.xxx;
+
+			// // clear shadow mask by background color
+			// BaseColor.rgb = mix(BaseColor.rgb, u_back_color.rgb, ShadowMaskClear);
+		}
+
+		// Color Compression
+		// increasing the floor of the signal without affecting the ceiling
+		BaseColor.rgb = u_floor.rgb + (vec3(1.0, 1.0, 1.0) - u_floor.rgb) * BaseColor.rgb;
+
+		// Color Power
+		BaseColor.r = pow(BaseColor.r, u_power.r);
+		BaseColor.g = pow(BaseColor.g, u_power.g);
+		BaseColor.b = pow(BaseColor.b, u_power.b);
+
+		// Scanline Simulation
+		if (u_scanline_alpha.x > 0.0f)
+		{
+			float BrightnessOffset = (u_scanline_bright_offset.x * u_scanline_alpha.x);
+			float BrightnessScale = (u_scanline_bright_scale.x * u_scanline_alpha.x) + (1.0 - u_scanline_alpha.x);
+
+			float ColorBrightness = 0.299 * BaseColor.r + 0.587 * BaseColor.g + 0.114 * BaseColor.b;
+
+			float ScanCoord = BaseCoord.y;
+			ScanCoord += u_quad_dims.y <= u_source_dims.y * 2.0f
+				? 0.5f / u_quad_dims.y // uncenter scanlines if the quad is less than twice the size of the source
+				: 0.0f;
+
+			ScanCoord *= u_source_dims.y * u_scanline_scale.x * 3.1415927; // PI
+
+			float ScanCoordJitter = u_scanline_jitter.x * u_jitter_amount.x * 1.618034; // PHI
+			float ScanSine = sin(ScanCoord + ScanCoordJitter);
+			float ScanlineWide = u_scanline_height.x + u_scanline_variation.x * max(1.0, u_scanline_height.x) * (1.0 - ColorBrightness);
+			float ScanSineScaled = pow(ScanSine * ScanSine, ScanlineWide);
+			float ScanBrightness = ScanSineScaled * BrightnessScale + BrightnessOffset * BrightnessScale;
+
+			BaseColor.rgb *= mix(vec3(1.0, 1.0, 1.0), vec3(ScanBrightness, ScanBrightness, ScanBrightness), u_scanline_alpha.xxx);
+		}
+
+		// Hum Bar Simulation
+		if (u_humbar_alpha.x > 0.0f)
+		{
+			float HumTimeStep = fract(u_time.x * u_humbar_hertz_rate.x);
+			float HumBrightness = 1.0 - fract(BaseCoord.y + HumTimeStep) * u_humbar_alpha.x;
+			BaseColor.rgb *= HumBrightness;
+		}
+
+		gl_FragColor = vec4(BaseColor.rgb * v_color0.rgb, BaseColor.a);
 	}
-
-	// Color Compression
-	// increasing the floor of the signal without affecting the ceiling
-	BaseColor.rgb = u_floor.rgb + (vec3(1.0, 1.0, 1.0) - u_floor.rgb) * BaseColor.rgb;
-	
-	// Color Power
-	BaseColor.r = pow(BaseColor.r, u_power.r);
-	BaseColor.g = pow(BaseColor.g, u_power.g);
-	BaseColor.b = pow(BaseColor.b, u_power.b);
-
-	// Scanline Simulation
-	if (u_scanline_alpha.x > 0.0f)
-	{
-		float BrightnessOffset = (u_scanline_bright_offset.x * u_scanline_alpha.x);
-		float BrightnessScale = (u_scanline_bright_scale.x * u_scanline_alpha.x) + (1.0 - u_scanline_alpha.x);
-
-		float ColorBrightness = 0.299 * BaseColor.r + 0.587 * BaseColor.g + 0.114 * BaseColor.b;
-
-		float ScanCoord = v_texcoord0.y * u_source_dims.y * u_scanline_scale.x * 3.1415927;
-		float ScanCoordJitter = u_scanline_jitter.x * u_jitter_amount.x * 1.618034;
-		float ScanSine = sin(ScanCoord + ScanCoordJitter);
-		float ScanlineWide = u_scanline_height.x + u_scanline_variation.x * max(1.0, u_scanline_height.x) * (1.0 - ColorBrightness);
-		float ScanSineScaled = pow(ScanSine * ScanSine, ScanlineWide);
-		float ScanBrightness = ScanSineScaled * BrightnessScale + BrightnessOffset * BrightnessScale;
-
-		BaseColor.rgb *= mix(vec3(1.0, 1.0, 1.0), vec3(ScanBrightness, ScanBrightness, ScanBrightness), u_scanline_alpha.xxx);
-	}
-
-	// Hum Bar Simulation
-	if (u_humbar_alpha.x > 0.0f)
-	{
-		float HumTimeStep = fract(u_time.x * 0.001);
-		float HumBrightness = 1.0 - fract(BaseCoord.y + HumTimeStep) * u_humbar_alpha.x;
-		BaseColor.rgb *= HumBrightness;
-	}
-
-	gl_FragColor = vec4(BaseColor.rgb * v_color0.rgb, BaseColor.a);
 }

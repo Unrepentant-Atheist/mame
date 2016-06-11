@@ -9,6 +9,7 @@
 ****************************************************************************/
 
 #include <cstdio>
+#include <cstdlib>
 
 #ifdef PSTANDALONE
 #if (PSTANDALONE)
@@ -26,108 +27,40 @@
 #include "devices/net_lib.h"
 #include "tools/nl_convert.h"
 
-
-#ifdef PSTANDALONE_PROVIDED
-
-#include <ctime>
-
-#define osd_ticks_t clock_t
-
-inline osd_ticks_t osd_ticks_per_second() { return CLOCKS_PER_SEC; }
-
-osd_ticks_t osd_ticks(void) { return clock(); }
-#else
-
-#endif
-
-/***************************************************************************
- * MAME COMPATIBILITY ...
- *
- * These are needed if we link without libutil
- ***************************************************************************/
-
-#if 0
-void ATTR_PRINTF(1,2) osd_printf_warning(const char *format, ...)
-{
-	va_list argptr;
-
-	/* do the output */
-	va_start(argptr, format);
-	vprintf(format, argptr);
-	va_end(argptr);
-}
-
-void *malloc_file_line(size_t size, const char *file, int line)
-{
-	// allocate the memory and fail if we can't
-	void *ret = osd_malloc(size);
-	memset(ret, 0, size);
-	return ret;
-}
-
-void *malloc_array_file_line(size_t size, const char *file, int line)
-{
-	// allocate the memory and fail if we can't
-	void *ret = osd_malloc_array(size);
-	memset(ret, 0, size);
-	return ret;
-}
-
-void free_file_line( void *memory, const char *file, int line )
-{
-	osd_free( memory );
-}
-
-void CLIB_DECL logerror(const char *format, ...)
-{
-	va_list arg;
-	va_start(arg, format);
-	vprintf(format, arg);
-	va_end(arg);
-}
-
-void report_bad_cast(const std::type_info &src_type, const std::type_info &dst_type)
-{
-	printf("Error: bad downcast<> or device<>.  Tried to convert a %s to a %s, which are incompatible.\n",
-			src_type.name(), dst_type.name());
-	throw;
-}
-#endif
-
-class tool_options_t : public poptions
+class tool_options_t : public plib::options
 {
 public:
 	tool_options_t() :
-		poptions(),
+		plib::options(),
 		opt_ttr ("t", "time_to_run", 1.0,   "time to run the emulation (seconds)", this),
 		opt_name("n", "name",        "",      "netlist in file to run; default is first one", this),
 		opt_logs("l", "logs",        "",      "colon separated list of terminals to log", this),
 		opt_file("f", "file",        "-",     "file to process (default is stdin)", this),
 		opt_type("y", "type",        "spice", "spice:eagle", "type of file to be converted: spice,eagle", this),
-		opt_cmd ("c", "cmd",         "run",   "run|convert|listdevices", this),
+		opt_cmd ("c", "cmd",         "run",   "run|convert|listdevices|static", this),
 		opt_inp( "i", "input",       "",      "input file to process (default is none)", this),
 		opt_verb("v", "verbose",              "be verbose - this produces lots of output", this),
 		opt_quiet("q", "quiet",               "be quiet - no warnings", this),
 		opt_help("h", "help",                 "display help", this)
 	{}
 
-	poption_double opt_ttr;
-	poption_str    opt_name;
-	poption_str    opt_logs;
-	poption_str    opt_file;
-	poption_str_limit opt_type;
-	poption_str    opt_cmd;
-	poption_str    opt_inp;
-	poption_bool   opt_verb;
-	poption_bool   opt_quiet;
-	poption_bool   opt_help;
+	plib::option_double opt_ttr;
+	plib::option_str    opt_name;
+	plib::option_str    opt_logs;
+	plib::option_str    opt_file;
+	plib::option_str_limit opt_type;
+	plib::option_str    opt_cmd;
+	plib::option_str    opt_inp;
+	plib::option_bool   opt_verb;
+	plib::option_bool   opt_quiet;
+	plib::option_bool   opt_help;
 };
 
-pstdout pout_strm;
-pstderr perr_strm;
+plib::pstdout pout_strm;
+plib::pstderr perr_strm;
 
-pstream_fmt_writer_t pout(pout_strm);
-pstream_fmt_writer_t perr(perr_strm);
+plib::pstream_fmt_writer_t pout(pout_strm);
+plib::pstream_fmt_writer_t perr(perr_strm);
 
 NETLIST_START(dummy)
 	/* Standard stuff */
@@ -146,27 +79,26 @@ class netlist_tool_t : public netlist::netlist_t
 public:
 
 	netlist_tool_t(const pstring &aname)
-	: netlist::netlist_t(aname), m_opts(NULL), m_setup(NULL)
+	: netlist::netlist_t(aname), m_opts(nullptr), m_setup(nullptr)
 	{
 	}
 
 	~netlist_tool_t()
 	{
-		if (m_setup != NULL)
-			pfree(m_setup);
+		if (m_setup != nullptr)
+			plib::pfree(m_setup);
 	};
 
 	void init()
 	{
-		m_setup = palloc(netlist::setup_t(this));
-		m_setup->init();
+		m_setup = plib::palloc<netlist::setup_t>(*this);
 	}
 
 	void read_netlist(const pstring &filename, const pstring &name)
 	{
 		// read the netlist ...
 
-		m_setup->register_source(palloc(netlist::source_file_t(filename)));
+		m_setup->register_source(std::make_shared<netlist::source_file_t>(filename));
 		m_setup->include(name);
 		log_setup();
 
@@ -180,12 +112,12 @@ public:
 	void log_setup()
 	{
 		log().debug("Creating dynamic logs ...\n");
-		pstring_vector_t ll(m_opts ? m_opts->opt_logs() : "" , ":");
-		for (unsigned i=0; i < ll.size(); i++)
+		plib::pstring_vector_t ll(m_opts ? m_opts->opt_logs() : "" , ":");
+		for (auto & log : ll)
 		{
-			pstring name = "log_" + ll[i];
+			pstring name = "log_" + log;
 			/*netlist_device_t *nc = */ m_setup->register_dev("LOG", name);
-			m_setup->register_link(name + ".I", ll[i]);
+			m_setup->register_link(name + ".I", log);
 		}
 	}
 
@@ -193,10 +125,10 @@ public:
 
 protected:
 
-	void vlog(const plog_level &l, const pstring &ls) const override
+	void vlog(const plib::plog_level &l, const pstring &ls) const override
 	{
 		pout("{}: {}\n", l.name().cstr(), ls.cstr());
-		if (l == plog_level::FATAL)
+		if (l == plib::plog_level::FATAL)
 			throw;
 	}
 
@@ -209,7 +141,7 @@ void usage(tool_options_t &opts)
 {
 	perr("{}",
 		"Usage:\n"
-		"  nltool -help\n"
+		"  nltool --help\n"
 		"  nltool [options]\n"
 		"\n"
 		"Where:\n"
@@ -220,7 +152,7 @@ void usage(tool_options_t &opts)
 struct input_t
 {
 	input_t()
-	: m_param(NULL), m_value(0.0)
+	: m_param(nullptr), m_value(0.0)
 	{
 	}
 	input_t(netlist::netlist_t *netlist, const pstring &line)
@@ -229,8 +161,8 @@ struct input_t
 		double t;
 		int e = sscanf(line.cstr(), "%lf,%[^,],%lf", &t, buf, &m_value);
 		if ( e!= 3)
-			throw netlist::fatalerror_e(pfmt("error {1} scanning line {2}\n")(e)(line));
-		m_time = netlist::netlist_time::from_double(t);
+			throw netlist::fatalerror_e(plib::pfmt("error {1} scanning line {2}\n")(e)(line));
+		m_time = netlist::netlist_time(t);
 		m_param = netlist->setup().find_param(buf, true);
 	}
 
@@ -240,7 +172,7 @@ struct input_t
 		{
 			case netlist::param_t::MODEL:
 			case netlist::param_t::STRING:
-				throw netlist::fatalerror_e(pfmt("param {1} is not numeric\n")(m_param->name()));
+				throw netlist::fatalerror_e(plib::pfmt("param {1} is not numeric\n")(m_param->name()));
 			case netlist::param_t::DOUBLE:
 				static_cast<netlist::param_double_t*>(m_param)->setTo(m_value);
 				break;
@@ -259,12 +191,12 @@ struct input_t
 
 };
 
-pvector_t<input_t> *read_input(netlist::netlist_t *netlist, pstring fname)
+plib::pvector_t<input_t> *read_input(netlist::netlist_t *netlist, pstring fname)
 {
-	pvector_t<input_t> *ret = palloc(pvector_t<input_t>());
+	plib::pvector_t<input_t> *ret = plib::palloc<plib::pvector_t<input_t>>();
 	if (fname != "")
 	{
-		pifilestream f(fname);
+		plib::pifilestream f(fname);
 		pstring l;
 		while (f.readline(l))
 		{
@@ -281,7 +213,7 @@ pvector_t<input_t> *read_input(netlist::netlist_t *netlist, pstring fname)
 static void run(tool_options_t &opts)
 {
 	netlist_tool_t nt("netlist");
-	osd_ticks_t t = osd_ticks();
+	plib::ticks_t t = plib::ticks();
 
 	nt.m_opts = &opts;
 	nt.init();
@@ -293,30 +225,48 @@ static void run(tool_options_t &opts)
 
 	nt.read_netlist(opts.opt_file(), opts.opt_name());
 
-	pvector_t<input_t> *inps = read_input(&nt, opts.opt_inp());
+	plib::pvector_t<input_t> *inps = read_input(&nt, opts.opt_inp());
 
 	double ttr = opts.opt_ttr();
 
-	pout("startup time ==> {1:5.3f}\n", (double) (osd_ticks() - t) / (double) osd_ticks_per_second() );
+	pout("startup time ==> {1:5.3f}\n", (double) (plib::ticks() - t) / (double) plib::ticks_per_second() );
 	pout("runnning ...\n");
-	t = osd_ticks();
+	t = plib::ticks();
 
 	unsigned pos = 0;
-	netlist::netlist_time nlt = netlist::netlist_time::zero;
+	netlist::netlist_time nlt = netlist::netlist_time::zero();
 
-	while (pos < inps->size() && (*inps)[pos].m_time < netlist::netlist_time::from_double(ttr))
+	while (pos < inps->size() && (*inps)[pos].m_time < netlist::netlist_time(ttr))
 	{
 		nt.process_queue((*inps)[pos].m_time - nlt);
 		(*inps)[pos].setparam();
 		nlt = (*inps)[pos].m_time;
 		pos++;
 	}
-	nt.process_queue(netlist::netlist_time::from_double(ttr) - nlt);
+	nt.process_queue(netlist::netlist_time(ttr) - nlt);
 	nt.stop();
 	pfree(inps);
 
-	double emutime = (double) (osd_ticks() - t) / (double) osd_ticks_per_second();
+	double emutime = (double) (plib::ticks() - t) / (double) plib::ticks_per_second();
 	pout("{1:f} seconds emulation took {2:f} real time ==> {3:5.2f}%\n", ttr, emutime, ttr/emutime*100.0);
+}
+
+static void static_compile(tool_options_t &opts)
+{
+	netlist_tool_t nt("netlist");
+
+	nt.m_opts = &opts;
+	nt.init();
+
+	nt.log().verbose.set_enabled(false);
+	nt.log().warning.set_enabled(false);
+
+	nt.read_netlist(opts.opt_file(), opts.opt_name());
+
+	nt.solver()->create_solver_code(pout_strm);
+
+	nt.stop();
+
 }
 
 /*-------------------------------------------------
@@ -327,28 +277,24 @@ static void listdevices()
 {
 	netlist_tool_t nt("netlist");
 	nt.init();
-	const netlist::factory_list_t &list = nt.setup().factory();
+	netlist::factory_list_t &list = nt.setup().factory();
 
-	nt.setup().register_source(palloc(netlist::source_proc_t("dummy", &netlist_dummy)));
+	nt.setup().register_source(std::make_shared<netlist::source_proc_t>("dummy", &netlist_dummy));
 	nt.setup().include("dummy");
 
 	nt.setup().start_devices();
 	nt.setup().resolve_inputs();
 
-	for (unsigned i=0; i < list.size(); i++)
+	for (auto & f : list)
 	{
-		netlist::base_factory_t *f = list.value_at(i);
-		pstring out = pfmt("{1} {2}(<id>")(f->classname(),"-20")(f->name());
+		pstring out = plib::pfmt("{1} {2}(<id>")(f->classname(),"-20")(f->name());
 		pstring terms("");
 
-		netlist::device_t *d = f->Create();
-		d->init(nt, pfmt("dummy{1}")(i));
-		d->start_dev();
+		auto d = f->Create(nt.setup().netlist(), "dummy");
 
 		// get the list of terminals ...
-		for (unsigned j=0; j < d->m_terminals.size(); j++)
+		for (auto & inp :  d->m_terminals)
 		{
-			pstring inp = d->m_terminals[j];
 			if (inp.startsWith(d->name() + "."))
 				inp = inp.substr(d->name().len() + 1);
 			terms += "," + inp;
@@ -384,6 +330,7 @@ static void listdevices()
 #include "corealloc.h"
 #endif
 
+#if 0
 static const char *pmf_verbose[] =
 {
 	"NL_PMF_TYPE_VIRTUAL",
@@ -391,6 +338,7 @@ static const char *pmf_verbose[] =
 	"NL_PMF_TYPE_GNUC_PMF_CONV",
 	"NL_PMF_TYPE_INTERNAL"
 };
+#endif
 
 int main(int argc, char *argv[])
 {
@@ -398,7 +346,7 @@ int main(int argc, char *argv[])
 	int ret;
 
 	perr("{}", "WARNING: This is Work In Progress! - It may fail anytime\n");
-	perr("Update dispatching using method {}\n", pmf_verbose[NL_PMF_TYPE]);
+	//perr("Update dispatching using method {}\n", pmf_verbose[NL_PMF_TYPE]);
 	if ((ret = opts.parse(argc, argv)) != argc)
 	{
 		perr("Error parsing {}\n", argv[ret]);
@@ -417,18 +365,20 @@ int main(int argc, char *argv[])
 		listdevices();
 	else if (cmd == "run")
 		run(opts);
+	else if (cmd == "static")
+		static_compile(opts);
 	else if (cmd == "convert")
 	{
 		pstring contents;
-		postringstream ostrm;
+		plib::postringstream ostrm;
 		if (opts.opt_file() == "-")
 		{
-			pstdin f;
+			plib::pstdin f;
 			ostrm.write(f);
 		}
 		else
 		{
-			pifilestream f(opts.opt_file());
+			plib::pifilestream f(opts.opt_file());
 			ostrm.write(f);
 		}
 		contents = ostrm.str();

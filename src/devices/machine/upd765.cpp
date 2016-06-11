@@ -1,8 +1,8 @@
 // license:BSD-3-Clause
 // copyright-holders:Olivier Galibert
-#include "debugger.h"
 
 #include "upd765.h"
+#include "debugger.h"
 
 const device_type UPD765A = &device_creator<upd765a_device>;
 const device_type UPD765B = &device_creator<upd765b_device>;
@@ -1634,9 +1634,6 @@ void upd765_family_device::read_data_continue(floppy_info &fi)
 						st2 |= ST2_WC|ST2_BC;
 					else
 						st2 |= ST2_WC;
-					fi.st0 |= ST0_FAIL;
-					fi.sub_state = COMMAND_DONE;
-					break;
 				}
 				live_start(fi, SEARCH_ADDRESS_MARK_HEADER);
 				return;

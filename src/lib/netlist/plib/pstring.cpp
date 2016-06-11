@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <algorithm>
+#include <stack>
 
 #include "pstring.h"
 #include "palloc.h"
@@ -131,8 +132,6 @@ const pstring_t<F> pstring_t<F>::substr(int start, int count) const
 		ret.pcopy(p, 0);
 	else
 	{
-		//FIXME: Trait to tell which one
-		//ret.pcopy(cstr() + start, count);
 		// find start
 		for (int i=0; i<start; i++)
 			p += F::codelen(p);
@@ -149,7 +148,7 @@ const pstring_t<F> pstring_t<F>::ucase() const
 {
 	pstring_t ret = *this;
 	ret.pcopy(cstr(), blen());
-	for (unsigned i=0; i<ret.len(); i++)
+	for (std::size_t  i=0; i<ret.len(); i++)
 		ret.m_ptr->str()[i] = toupper((unsigned) ret.m_ptr->str()[i]);
 	return ret;
 }
@@ -160,11 +159,11 @@ int pstring_t<F>::find_first_not_of(const pstring_t &no) const
 	char *t = m_ptr->str();
 	unsigned nolen = no.len();
 	unsigned tlen = len();
-	for (unsigned i=0; i < tlen; i++)
+	for (std::size_t  i=0; i < tlen; i++)
 	{
 		char *n = no.m_ptr->str();
 		bool f = true;
-		for (unsigned j=0; j < nolen; j++)
+		for (std::size_t  j=0; j < nolen; j++)
 		{
 			if (F::code(t) == F::code(n))
 				f = false;
@@ -184,11 +183,11 @@ int pstring_t<F>::find_last_not_of(const pstring_t &no) const
 	unsigned nolen = no.len();
 	unsigned tlen = len();
 	int last_found = -1;
-	for (unsigned i=0; i < tlen; i++)
+	for (std::size_t  i=0; i < tlen; i++)
 	{
 		char *n = no.m_ptr->str();
 		bool f = true;
-		for (unsigned j=0; j < nolen; j++)
+		for (std::size_t  j=0; j < nolen; j++)
 		{
 			if (F::code(t) == F::code(n))
 				f = false;
@@ -273,13 +272,13 @@ template<typename F>
 double pstring_t<F>::as_double(bool *error) const
 {
 	double ret;
-	char *e = NULL;
+	char *e = nullptr;
 
-	if (error != NULL)
+	if (error != nullptr)
 		*error = false;
 	ret = strtod(cstr(), &e);
 	if (*e != 0)
-		if (error != NULL)
+		if (error != nullptr)
 			*error = true;
 	return ret;
 }
@@ -288,16 +287,16 @@ template<typename F>
 long pstring_t<F>::as_long(bool *error) const
 {
 	long ret;
-	char *e = NULL;
+	char *e = nullptr;
 
-	if (error != NULL)
+	if (error != nullptr)
 		*error = false;
 	if (startsWith("0x"))
 		ret = strtol(substr(2).cstr(), &e, 16);
 	else
 		ret = strtol(cstr(), &e, 10);
 	if (*e != 0)
-		if (error != NULL)
+		if (error != nullptr)
 			*error = true;
 	return ret;
 }
@@ -314,7 +313,7 @@ long pstring_t<F>::as_long(bool *error) const
 
 #if 1
 
-static std::stack<pstr_t *> *stk = NULL;
+static std::stack<pstr_t *> *stk = nullptr;
 
 static inline unsigned countleadbits(unsigned x)
 {
@@ -358,13 +357,13 @@ void pstring_t<F>::sfree(pstr_t *s)
 	s->m_ref_count--;
 	if (s->m_ref_count == 0 && s != &m_zero)
 	{
-		if (stk != NULL)
+		if (stk != nullptr)
 		{
 			unsigned sn= ((32 - countleadbits(s->len())) + 1) / 2;
 			stk[sn].push(s);
 		}
 		else
-			pfree_array(((char *)s));
+			plib::pfree_array(((char *)s));
 		//_mm_free(((char *)s));
 	}
 }
@@ -372,38 +371,38 @@ void pstring_t<F>::sfree(pstr_t *s)
 template<typename F>
 pstr_t *pstring_t<F>::salloc(int n)
 {
-	if (stk == NULL)
-		stk = palloc_array(std::stack<pstr_t *>, 17);
+	if (stk == nullptr)
+		stk = plib::palloc_array<std::stack<pstr_t *>>(17);
 	pstr_t *p;
 	unsigned sn= ((32 - countleadbits(n)) + 1) / 2;
 	unsigned size = sizeof(pstr_t) + ((UINT64) 1<<(sn * 2)) + 1;
 	if (stk[sn].empty())
-		p = (pstr_t *) palloc_array(char, size);
+		p = (pstr_t *) plib::palloc_array<char>(size);
 	else
 	{
 		p = stk[sn].top();
 		stk[sn].pop();
 	}
 
-	//  str_t *p = (str_t *) _mm_malloc(size, 8);
+	//  str_t *p = (str_t *) mm_malloc(size, 8);
 	p->init(n);
 	return p;
 }
 template<typename F>
 void pstring_t<F>::resetmem()
 {
-	if (stk != NULL)
+	if (stk != nullptr)
 	{
-		for (unsigned i=0; i<=16; i++)
+		for (std::size_t  i=0; i<=16; i++)
 		{
 			for (; stk[i].size() > 0; )
 			{
-				pfree_array(stk[i].top());
+				plib::pfree_array(stk[i].top());
 				stk[i].pop();
 			}
 		}
-		pfree_array(stk);
-		stk = NULL;
+		plib::pfree_array(stk);
+		stk = nullptr;
 	}
 }
 
@@ -425,7 +424,7 @@ pstr_t *pstring_t<F>::salloc(int n)
 {
 	int size = sizeof(pstr_t) + n + 1;
 	pstr_t *p = (pstr_t *) palloc_array(char, size);
-	//  str_t *p = (str_t *) _mm_malloc(size, 8);
+	//  str_t *p = (str_t *) mm_malloc(size, 8);
 	p->init(n);
 	return p;
 }
@@ -450,7 +449,7 @@ int pstring_t<F>::find(const pstring_t &search, unsigned start) const
 	const char *s = search.cstr();
 	const unsigned startt = std::min(start, tlen);
 	const char *t = cstr();
-	for (unsigned i=0; i<startt; i++)
+	for (std::size_t  i=0; i<startt; i++)
 		t += F::codelen(t);
 	for (int i=0; i <= (int) tlen - (int) startt - (int) slen; i++)
 	{
@@ -479,7 +478,7 @@ int pstring_t<F>::find(const mem_t *search, unsigned start) const
 	const char *s = search;
 	const unsigned startt = std::min(start, tlen);
 	const char *t = cstr();
-	for (unsigned i=0; i<startt; i++)
+	for (std::size_t  i=0; i<startt; i++)
 		t += F::codelen(t);
 	for (int i=0; i <= (int) tlen - (int) startt - (int) slen; i++)
 	{
@@ -532,18 +531,18 @@ int pstring_t<F>::pcmp(const mem_t *right) const
 
 pstringbuffer::~pstringbuffer()
 {
-	if (m_ptr != NULL)
-		pfree_array(m_ptr);
+	if (m_ptr != nullptr)
+		plib::pfree_array(m_ptr);
 }
 
 void pstringbuffer::resize(const std::size_t size)
 {
-	if (m_ptr == NULL)
+	if (m_ptr == nullptr)
 	{
 		m_size = DEFAULT_SIZE;
 		while (m_size <= size)
 			m_size *= 2;
-		m_ptr = palloc_array(char, m_size);
+		m_ptr = plib::palloc_array<char>(m_size);
 		*m_ptr = 0;
 		m_len = 0;
 	}
@@ -551,9 +550,9 @@ void pstringbuffer::resize(const std::size_t size)
 	{
 		while (m_size < size)
 			m_size *= 2;
-		char *new_buf = palloc_array(char, m_size);
+		char *new_buf = plib::palloc_array<char>(m_size);
 		std::memcpy(new_buf, m_ptr, m_len + 1);
-		pfree_array(m_ptr);
+		plib::pfree_array(m_ptr);
 		m_ptr = new_buf;
 	}
 }

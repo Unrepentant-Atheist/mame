@@ -1,5 +1,6 @@
 -- license:BSD-3-Clause
 -- copyright-holders:MAMEdev Team
+STANDALONE = false
 
 newoption {
 	trigger = 'build-dir',
@@ -349,26 +350,8 @@ newoption {
 }
 
 newoption {
-	trigger = "IGNORE_GIT",
-	description = "Ignore usage of git command in build process",
-	allowed = {
-		{ "0",  "Do not ignore"   },
-		{ "1",  "Ingore"  },
-	},
-}
-
-newoption {
 	trigger = "SOURCES",
 	description = "List of sources to compile.",
-}
-
-newoption {
-	trigger = "FORCE_VERSION_COMPILE",
-	description = "Force compiling of version.c file.",
-	allowed = {
-		{ "0",   "Disabled"     },
-		{ "1",   "Enabled"      },
-	}
 }
 
 newoption {
@@ -529,19 +512,7 @@ if (_OPTIONS["SOURCES"] == nil) then
 	dofile (path.join("target", _OPTIONS["target"],_OPTIONS["subtarget"] .. ".lua"))
 end
 
-
-if _OPTIONS["IGNORE_GIT"]~="1" then
-	GIT_VERSION         = backtick( "git rev-parse --short HEAD" )
-	GIT_VERSION_RELEASE = backtick( "git rev-list --tags --max-count=1" )
-	GIT_VERSION_LASTONE = backtick( "git rev-list --max-count=1 HEAD" ) 
-	if (GIT_VERSION_RELEASE ~= GIT_VERSION_LASTONE) then
-	defines {
-		"GIT_VERSION=" .. GIT_VERSION,
-	}
-	end
-end
-
-configuration { "gmake" }
+configuration { "gmake or ninja" }
 	flags {
 		"SingleOutputDir",
 	}
@@ -574,7 +545,7 @@ configuration { "Debug" }
 	defines {
 		"MAME_DEBUG",
 		"MAME_PROFILER",
-		"BGFX_CONFIG_DEBUG=1",
+--		"BGFX_CONFIG_DEBUG=1",
 	}
 
 if _OPTIONS["FASTDEBUG"]=="1" then
@@ -701,7 +672,7 @@ end
 		"LUA_COMPAT_5_2",
 	}
 
-	if _ACTION == "gmake" then
+	if _ACTION == "gmake" or _ACTION == "ninja" then
 
 	--we compile C-only to C99 standard with GNU extensions
 
@@ -1285,7 +1256,7 @@ end
 		includedirs {
 			MAME_DIR .. "3rdparty/dxsdk/Include"
 		}
-configuration { "vs2015" }
+configuration { "vs2015*" }
 		buildoptions {
 			"/wd4334", -- warning C4334: '<<': result of 32-bit shift implicitly converted to 64 bits (was 64-bit shift intended?)
 			"/wd4456", -- warning C4456: declaration of 'xxx' hides previous local declaration
@@ -1338,12 +1309,18 @@ group "core"
 
 dofile(path.join("src", "emu.lua"))
 
+if (STANDALONE~=true) then
+	dofile(path.join("src", "mame", "frontend.lua"))
+end
+
 group "devices"
 dofile(path.join("src", "devices.lua"))
 devicesProject(_OPTIONS["target"],_OPTIONS["subtarget"])
 
-group "drivers"
-findfunction("createProjects_" .. _OPTIONS["target"] .. "_" .. _OPTIONS["subtarget"])(_OPTIONS["target"], _OPTIONS["subtarget"])
+if (STANDALONE~=true) then
+	group "drivers"
+	findfunction("createProjects_" .. _OPTIONS["target"] .. "_" .. _OPTIONS["subtarget"])(_OPTIONS["target"], _OPTIONS["subtarget"])
+end
 
 group "emulator"
 dofile(path.join("src", "main.lua"))

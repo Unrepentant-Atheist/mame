@@ -645,11 +645,11 @@ msgstr ""
 
 #: src/emu/ui/info.cpp:98
 msgid "Not supported"
-msgstr ""
+msgstr "Non supportato"
 
 #: src/emu/ui/info.cpp:101
 msgid "Partially supported"
-msgstr ""
+msgstr "Parzialmente supportato"
 
 #: src/emu/ui/info.cpp:109
 msgid "[empty]"
@@ -698,7 +698,7 @@ msgstr "Configurazione Macchina"
 
 #: src/emu/ui/mainmenu.cpp:69
 msgid "Bookkeeping Info"
-msgstr "Info Crediti e Tempi d'Utilizzo"
+msgstr "Info Crediti e Tempi di Utilizzo"
 
 #: src/emu/ui/mainmenu.cpp:72
 msgid "Machine Information"
@@ -754,7 +754,7 @@ msgstr ""
 
 #: src/emu/ui/mainmenu.cpp:135
 msgid "Plugin Options"
-msgstr ""
+msgstr "Opzioni Plugin"
 
 #: src/emu/ui/mainmenu.cpp:139
 msgid "External DAT View"
@@ -861,12 +861,12 @@ msgstr ""
 
 #: src/emu/ui/miscmenu.cpp:258
 msgid "Coin %1$c: NA%3$s\n"
-msgstr ""
+msgstr "Monete %1$c: NA%3$s\n"
 
 #: src/emu/ui/miscmenu.cpp:258
 #, c-format
 msgid "Coin %1$c: %2$d%3$s\n"
-msgstr ""
+msgstr "Monete %1$c: %2$d%3$s\n"
 
 #: src/emu/ui/miscmenu.cpp:261
 msgid " (locked)"
@@ -892,15 +892,15 @@ msgstr "%s.txt salvato nella cartella UI."
 
 #: src/emu/ui/miscmenu.cpp:677
 msgid "Export list in XML format (like -listxml)"
-msgstr ""
+msgstr "Esporta lista in formato XML (come -listxml)"
 
 #: src/emu/ui/miscmenu.cpp:678
 msgid "Export list in XML format (like -listxml, but exclude devices)"
-msgstr ""
+msgstr "Esporta lista in formato XML (come -listxml, ma escludendo i device)"
 
 #: src/emu/ui/miscmenu.cpp:679
 msgid "Export list in TXT format (like -listfull)"
-msgstr ""
+msgstr "Esporta lista in formato TXT (come -listfull)"
 
 #: src/emu/ui/miscmenu.cpp:729 src/emu/ui/optsmenu.cpp:376
 msgid ""
@@ -922,11 +922,11 @@ msgstr ""
 
 #: src/emu/ui/miscmenu.cpp:790
 msgid "Save machine configuration"
-msgstr ""
+msgstr "Salva configurazione per questo sistema"
 
 #: src/emu/ui/miscmenu.cpp:806
 msgid "Configure machine:"
-msgstr ""
+msgstr "Configura questo sistema:"
 
 #: src/emu/ui/miscmenu.cpp:868 src/emu/ui/selsoft.cpp:109
 msgid " (default)"
@@ -1026,6 +1026,10 @@ msgid ""
 "\n"
 "Press any key to continue."
 msgstr ""
+"Nella macchina selezionata mancano uno o più file ROM o CHD. "
+"Seleziona un'altra macchina.\n"
+"\n"
+"Premi un tasto per continuare."
 
 #: src/emu/ui/selgame.cpp:595 src/emu/ui/simpleselgame.cpp:265
 msgid "Configure Options"
@@ -1033,7 +1037,7 @@ msgstr "Configura Opzioni"
 
 #: src/emu/ui/selgame.cpp:596
 msgid "Configure Machine"
-msgstr ""
+msgstr "Configura Macchina"
 
 #: src/emu/ui/selgame.cpp:758
 #, c-format
@@ -1074,7 +1078,7 @@ msgstr "Il Driver è un clone di: %-.100s"
 
 #: src/emu/ui/selgame.cpp:855 src/emu/ui/selsoft.cpp:758
 msgid "Driver is parent"
-msgstr ""
+msgstr "Il Driver è un parent"
 
 #: src/emu/ui/selgame.cpp:859 src/emu/ui/selsoft.cpp:762
 #: src/emu/ui/simpleselgame.cpp:335
@@ -1119,7 +1123,7 @@ msgstr "Sistema: %1$-.100s"
 #: src/emu/ui/selgame.cpp:900 src/emu/ui/selsoft.cpp:804
 #, c-format
 msgid "Software is clone of: %1$-.100s"
-msgstr "Il software è clone di: %1$-.100s"
+msgstr "Il software è Clone di: %1$-.100s"
 
 #: src/emu/ui/selgame.cpp:902 src/emu/ui/selsoft.cpp:806
 msgid "Software is parent"
@@ -1304,16 +1308,20 @@ msgid ""
 "\n"
 "Press any key to continue."
 msgstr ""
+"Nel software selezionato mancano uno o più file richiesti. Seleziona "
+"un'altra macchina.\n"
+"\n"
+"Premi un tasto per continuare."
 
 #: src/emu/ui/selsoft.cpp:683
 #, c-format
 msgid "%1$s %2$s ( %3$d / %4$d software packages )"
-msgstr ""
+msgstr "%1$s %2$s ( %3$d / %4$d pacchetti software )"
 
 #: src/emu/ui/selsoft.cpp:684
 #, c-format
 msgid "Driver: \"%1$s\" software list "
-msgstr ""
+msgstr "Driver: \"%1$s\" lista software "
 
 #: src/emu/ui/selsoft.cpp:687
 #, c-format
@@ -1479,7 +1487,7 @@ msgstr "Registra"
 
 #: src/emu/ui/tapectrl.cpp:103
 msgid "Rewind"
-msgstr ""
+msgstr "Riavvolgi"
 
 #: src/emu/ui/tapectrl.cpp:106
 msgid "Fast Forward"
@@ -1599,7 +1607,7 @@ msgid ""
 msgstr ""
 "\n"
 "\n"
-"Ci sono cloni funzionanti di questa macchina: "
+"Ci sono Cloni funzionanti di questa macchina: "
 
 #: src/emu/ui/ui.cpp:1167
 msgid ""

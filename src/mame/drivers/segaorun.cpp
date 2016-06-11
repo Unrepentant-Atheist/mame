@@ -274,7 +274,6 @@ Notes:
 #include "emu.h"
 #include "includes/segaorun.h"
 #include "machine/fd1089.h"
-#include "machine/segaic16.h"
 #include "sound/2151intf.h"
 #include "sound/segapcm.h"
 #include "includes/segaipt.h"
@@ -550,7 +549,7 @@ WRITE16_MEMBER( segaorun_state::nop_w )
 READ8_MEMBER( segaorun_state::sound_data_r )
 {
 	m_soundcpu->set_input_line(INPUT_LINE_NMI, CLEAR_LINE);
-	return soundlatch_read();
+	return m_soundlatch->read(space, 0);
 }
 
 
@@ -587,7 +586,7 @@ void segaorun_state::device_timer(emu_timer &timer, device_timer_id id, int para
 	switch (id)
 	{
 		case TID_SOUND_WRITE:
-			soundlatch_write(param);
+			m_soundlatch->write(m_soundcpu->space(AS_PROGRAM), 0, param);
 			m_soundcpu->set_input_line(INPUT_LINE_NMI, ASSERT_LINE);
 			break;
 
@@ -700,7 +699,7 @@ READ16_MEMBER( segaorun_state::outrun_custom_io_r )
 		}
 
 		case 0x60/2:
-			return watchdog_reset_r(space, 0);
+			return m_watchdog->reset_r(space, 0);
 
 		default:
 			break;
@@ -747,7 +746,7 @@ WRITE16_MEMBER( segaorun_state::outrun_custom_io_w )
 			return;
 
 		case 0x60/2:
-			machine().watchdog_reset();
+			m_watchdog->watchdog_reset();
 			return;
 
 		case 0x70/2:
@@ -830,7 +829,7 @@ WRITE16_MEMBER( segaorun_state::shangon_custom_io_w )
 			return;
 
 		case 0x3000/2:
-			machine().watchdog_reset();
+			m_watchdog->watchdog_reset();
 			return;
 
 		case 0x3020/2:
@@ -991,7 +990,7 @@ static INPUT_PORTS_START( outrun_generic )
 	PORT_BIT( 0xff, 0x00, IPT_PEDAL2 ) PORT_SENSITIVITY(100) PORT_KEYDELTA(40)
 
 	PORT_START("ADC.3")
-	PORT_BIT( 0xff, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_CUSTOM_MEMBER(DEVICE_SELF, segaorun_state, bankmotor_pos_r, NULL)
+	PORT_BIT( 0xff, IP_ACTIVE_HIGH, IPT_SPECIAL ) PORT_CUSTOM_MEMBER(DEVICE_SELF, segaorun_state, bankmotor_pos_r, nullptr)
 INPUT_PORTS_END
 
 
@@ -1169,6 +1168,8 @@ static MACHINE_CONFIG_START( outrun_base, segaorun_state )
 
 	MCFG_QUANTUM_TIME(attotime::from_hz(6000))
 
+	MCFG_WATCHDOG_ADD("watchdog")
+
 	MCFG_DEVICE_ADD("i8255", I8255, 0)
 	MCFG_I8255_IN_PORTA_CB(READ8(segaorun_state, bankmotor_limit_r))
 	MCFG_I8255_OUT_PORTA_CB(WRITE8(segaorun_state, unknown_porta_w))
@@ -1194,6 +1195,8 @@ static MACHINE_CONFIG_START( outrun_base, segaorun_state )
 
 	// sound hardware
 	MCFG_SPEAKER_STANDARD_STEREO("lspeaker", "rspeaker")
+
+	MCFG_GENERIC_LATCH_8_ADD("soundlatch")
 
 	MCFG_YM2151_ADD("ymsnd", SOUND_CLOCK/4)
 	MCFG_SOUND_ROUTE(0, "lspeaker", 0.43)

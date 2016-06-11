@@ -164,16 +164,15 @@ static int get_variable_value(running_machine &machine, const char *string, char
 	char temp[100];
 
 	// screen 0 parameters
-	screen_device_iterator iter(machine.root_device());
 	int scrnum = 0;
-	for (const screen_device *device = iter.first(); device != nullptr; device = iter.next(), scrnum++)
+	for (const screen_device &device : screen_device_iterator(machine.root_device()))
 	{
 		// native X aspect factor
 		sprintf(temp, "~scr%dnativexaspect~", scrnum);
 		if (!strncmp(string, temp, strlen(temp)))
 		{
-			int num = device->visible_area().width();
-			int den = device->visible_area().height();
+			int num = device.visible_area().width();
+			int den = device.visible_area().height();
 			reduce_fraction(num, den);
 			*outputptr += sprintf(*outputptr, "%d", num);
 			return strlen(temp);
@@ -183,8 +182,8 @@ static int get_variable_value(running_machine &machine, const char *string, char
 		sprintf(temp, "~scr%dnativeyaspect~", scrnum);
 		if (!strncmp(string, temp, strlen(temp)))
 		{
-			int num = device->visible_area().width();
-			int den = device->visible_area().height();
+			int num = device.visible_area().width();
+			int den = device.visible_area().height();
 			reduce_fraction(num, den);
 			*outputptr += sprintf(*outputptr, "%d", den);
 			return strlen(temp);
@@ -194,7 +193,7 @@ static int get_variable_value(running_machine &machine, const char *string, char
 		sprintf(temp, "~scr%dwidth~", scrnum);
 		if (!strncmp(string, temp, strlen(temp)))
 		{
-			*outputptr += sprintf(*outputptr, "%d", device->visible_area().width());
+			*outputptr += sprintf(*outputptr, "%d", device.visible_area().width());
 			return strlen(temp);
 		}
 
@@ -202,9 +201,12 @@ static int get_variable_value(running_machine &machine, const char *string, char
 		sprintf(temp, "~scr%dheight~", scrnum);
 		if (!strncmp(string, temp, strlen(temp)))
 		{
-			*outputptr += sprintf(*outputptr, "%d", device->visible_area().height());
+			*outputptr += sprintf(*outputptr, "%d", device.visible_area().height());
 			return strlen(temp);
 		}
+
+		// keep count
+		scrnum++;
 	}
 
 	// default: copy the first character and continue
@@ -645,7 +647,7 @@ layout_element::component::component(running_machine &machine, xml_data_node &co
 		}
 		m_stopnames[m_numstops++] = symbollist;
 
-		// careful, dirname is NULL if we're coming from internal layout, and our string assignment doesn't like that
+		// careful, dirname is nullptr if we're coming from internal layout, and our string assignment doesn't like that
 		if (dirname != nullptr)
 			m_dirname = dirname;
 
@@ -948,12 +950,12 @@ void layout_element::component::draw_text(running_machine &machine, bitmap_argb3
 	const char *ends = origs + strlen(origs);
 	const char *s = origs;
 	unicode_char schar;
-	
+
 	// loop over characters
 	while (*s != 0)
 	{
-		int	scharcount = uchar_from_utf8(&schar, s, ends - s);
-		
+		int scharcount = uchar_from_utf8(&schar, s, ends - s);
+
 		if (scharcount == -1)
 			break;
 
@@ -1122,8 +1124,8 @@ void layout_element::component::draw_reel(running_machine &machine, bitmap_argb3
 					// loop over characters
 					while (*s != 0)
 					{
-						int	scharcount = uchar_from_utf8(&schar, s, ends - s);
-		
+						int scharcount = uchar_from_utf8(&schar, s, ends - s);
+
 						if (scharcount == -1)
 							break;
 
@@ -1283,8 +1285,8 @@ void layout_element::component::draw_beltreel(running_machine &machine, bitmap_a
 				// loop over characters
 				while (*s != 0)
 				{
-					int	scharcount = uchar_from_utf8(&schar, s, ends - s);
-		
+					int scharcount = uchar_from_utf8(&schar, s, ends - s);
+
 					if (scharcount == -1)
 						break;
 
@@ -2401,10 +2403,7 @@ layout_view::item::item(running_machine &machine, xml_data_node &itemnode, simpl
 	// fetch common data
 	int index = xml_get_attribute_int_with_subst(machine, itemnode, "index", -1);
 	if (index != -1)
-	{
-		screen_device_iterator iter(machine.root_device());
-		m_screen = iter.byindex(index);
-	}
+		m_screen = screen_device_iterator(machine.root_device()).byindex(index);
 	m_input_mask = xml_get_attribute_int_with_subst(machine, itemnode, "inputmask", 0);
 	if (m_output_name[0] != 0 && m_element != nullptr)
 		machine.output().set_value(m_output_name.c_str(), m_element->default_state());

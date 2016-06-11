@@ -42,7 +42,9 @@
 #define WINOPTION_SHADOW_MASK_UOFFSET       "shadow_mask_uoffset"
 #define WINOPTION_SHADOW_MASK_VOFFSET       "shadow_mask_voffset"
 #define WINOPTION_REFLECTION                "reflection"
-#define WINOPTION_CURVATURE                 "curvature"
+#define WINOPTION_DISTORTION                "distortion"
+#define WINOPTION_CUBIC_DISTORTION          "cubic_distortion"
+#define WINOPTION_DISTORT_CORNER            "distort_corner"
 #define WINOPTION_ROUND_CORNER              "round_corner"
 #define WINOPTION_SMOOTH_BORDER             "smooth_border"
 #define WINOPTION_VIGNETTING                "vignetting"
@@ -81,9 +83,9 @@
 #define WINOPTION_YIQ_QVALUE                "yiq_q"
 #define WINOPTION_YIQ_SCAN_TIME             "yiq_scan_time"
 #define WINOPTION_YIQ_PHASE_COUNT           "yiq_phase_count"
+#define WINOPTION_VECTOR_BEAM_SMOOTH        "vector_beam_smooth"
 #define WINOPTION_VECTOR_LENGTH_SCALE       "vector_length_scale"
 #define WINOPTION_VECTOR_LENGTH_RATIO       "vector_length_ratio"
-#define WINOPTION_VECTOR_TIME_PERIOD        "vector_time_period"
 #define WINOPTION_BLOOM_BLEND_MODE          "bloom_blend_mode"
 #define WINOPTION_BLOOM_SCALE               "bloom_scale"
 #define WINOPTION_BLOOM_OVERDRIVE           "bloom_overdrive"
@@ -149,7 +151,9 @@ public:
 	float screen_scanline_jitter() const { return float_value(WINOPTION_SCANLINE_JITTER); }
 	float screen_hum_bar_alpha() const { return float_value(WINOPTION_HUM_BAR_ALPHA); }
 	float screen_reflection() const { return float_value(WINOPTION_REFLECTION); }
-	float screen_curvature() const { return float_value(WINOPTION_CURVATURE); }
+	float screen_distortion() const { return float_value(WINOPTION_DISTORTION); }
+	float screen_cubic_distortion() const { return float_value(WINOPTION_CUBIC_DISTORTION); }
+	float screen_distort_corner() const { return float_value(WINOPTION_DISTORT_CORNER); }
 	float screen_round_corner() const { return float_value(WINOPTION_ROUND_CORNER); }
 	float screen_smooth_border() const { return float_value(WINOPTION_SMOOTH_BORDER); }
 	float screen_vignetting() const { return float_value(WINOPTION_VIGNETTING); }
@@ -174,9 +178,9 @@ public:
 	float screen_yiq_q() const { return float_value(WINOPTION_YIQ_QVALUE); }
 	float screen_yiq_scan_time() const { return float_value(WINOPTION_YIQ_SCAN_TIME); }
 	int screen_yiq_phase_count() const { return int_value(WINOPTION_YIQ_PHASE_COUNT); }
+	float screen_vector_beam_smooth() const { return float_value(WINOPTION_VECTOR_BEAM_SMOOTH); }
 	float screen_vector_length_scale() const { return float_value(WINOPTION_VECTOR_LENGTH_SCALE); }
 	float screen_vector_length_ratio() const { return float_value(WINOPTION_VECTOR_LENGTH_RATIO); }
-	float screen_vector_time_period() const { return float_value(WINOPTION_VECTOR_TIME_PERIOD); }
 	int screen_bloom_blend_mode() const { return int_value(WINOPTION_BLOOM_BLEND_MODE); }
 	float screen_bloom_scale() const { return float_value(WINOPTION_BLOOM_SCALE); }
 	const char *screen_bloom_overdrive() const { return value(WINOPTION_BLOOM_OVERDRIVE); }
@@ -249,8 +253,14 @@ struct MouseButtonEventArgs
 	int ypos;
 };
 
+// Forward declarations
+struct _EXCEPTION_POINTERS;
+
 class windows_osd_interface : public osd_common_t
 {
+	// Access to exception filter static method
+	friend int main(int argc, char *argv[]);
+
 public:
 	// construction/destruction
 	windows_osd_interface(windows_options &options);
@@ -260,8 +270,11 @@ public:
 	virtual void init(running_machine &machine) override;
 	virtual void update(bool skip_redraw) override;
 
-	// video overridables
+	// input overrideables
 	virtual void customize_input_type_list(simple_list<input_type_entry> &typelist) override;
+
+	// video overridables
+	virtual void add_audio_to_recording(const INT16 *buffer, int samples_this_frame) override;
 
 	virtual void video_register() override;
 
@@ -278,7 +291,7 @@ public:
 	bool should_hide_mouse() const;
 	void poll_input(running_machine &machine) const;
 
-	windows_options &options() { return m_options; }
+	virtual windows_options &options() override { return m_options; }
 
 	int window_count();
 
@@ -286,8 +299,11 @@ protected:
 	virtual void build_slider_list() override;
 	virtual void update_slider_list() override;
 
+	void check_osd_inputs();
+
 private:
 	virtual void osd_exit() override;
+	void output_oslog(const char *buffer);
 
 	windows_options &   m_options;
 
@@ -301,12 +317,11 @@ ref class MameMainApp sealed : public Windows::ApplicationModel::Core::IFramewor
 private:
 	std::unique_ptr<windows_options>        m_options;
 	std::unique_ptr<windows_osd_interface>  m_osd;
-	std::unique_ptr<cli_frontend>           m_frontend;
 
 public:
 	MameMainApp();
 
-	// IFrameworkView Methods. 
+	// IFrameworkView Methods.
 	virtual void Initialize(Windows::ApplicationModel::Core::CoreApplicationView^ applicationView);
 	virtual void SetWindow(Windows::UI::Core::CoreWindow^ window);
 	virtual void Load(Platform::String^ entryPoint);
@@ -331,12 +346,5 @@ extern const options_entry mame_win_options[];
 // defined in winwork.c
 extern int osd_num_processors;
 
-
-
-//============================================================
-//  FUNCTION PROTOTYPES
-//============================================================
-
-void winmain_dump_stack();
 
 #endif

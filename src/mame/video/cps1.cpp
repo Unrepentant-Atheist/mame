@@ -1383,7 +1383,17 @@ static const struct gfx_range mapper_KNM10B_table[] =
 	{ 0 }
 };
 
-
+// unknown part number, this is just based on where the gfx are in the ROM
+#define mapper_pokonyan   { 0x8000, 0x8000, 0x8000, 0 }, mapper_pokonyan_table
+static const struct gfx_range mapper_pokonyan_table[] =
+{
+	/* type            start    end      bank */
+	{ GFXTYPE_SPRITES, 0x0000, 0x2fff, 0 },
+	{ GFXTYPE_SCROLL1, 0x7000, 0x7fff, 0 },
+	{ GFXTYPE_SCROLL3, 0x3000, 0x3fff, 0 },
+	{ GFXTYPE_SCROLL2, 0x4000, 0x6fff, 0 },
+	{ 0 }
+};
 
 static const struct CPS1config cps1_config_table[]=
 {
@@ -1502,6 +1512,7 @@ static const struct CPS1config cps1_config_table[]=
 	{"knightsj",    CPS_B_21_BT4, mapper_KR63B,  0x36, 0, 0x34 },
 	{"knightsja",   CPS_B_21_BT4, mapper_KR63B,  0x36, 0, 0x34 },   // wrong, this set uses KR22B, still not dumped
 	//{"knightsb",    CPS_B_21_BT4, mapper_KR63B,  0x36, 0, 0x34 },   // wrong, knightsb bootleg doesn't use the KR63B PAL
+	{"pokonyan",       CPS_B_21_DEF, mapper_pokonyan, 0x36 },
 	{"sf2ce",       CPS_B_21_DEF, mapper_S9263B, 0x36 },
 	{"sf2ceea",     CPS_B_21_DEF, mapper_S9263B, 0x36 },
 	{"sf2ceua",     CPS_B_21_DEF, mapper_S9263B, 0x36 },
@@ -1542,6 +1553,7 @@ static const struct CPS1config cps1_config_table[]=
 	{"sf2mdtb",     CPS_B_21_DEF, mapper_S9263B, 0x36, 0, 0, 1 },
 	{"sf2b",        CPS_B_17,     mapper_STF29,  0x36, 0, 0, 1  },
 	{"varth",       CPS_B_04,     mapper_VA63B },   /* CPSB test has been patched out (60=0008) register is also written to, possibly leftover from development */  // wrong, this set uses VA24B, dumped but equations still not added
+	{"varthb",      CPS_B_04,     mapper_VA63B, 0, 0, 0, 0x0F },
 	{"varthr1",     CPS_B_04,     mapper_VA63B },   /* CPSB test has been patched out (60=0008) register is also written to, possibly leftover from development */  // wrong, this set uses VA24B, dumped but equations still not added
 	{"varthu",      CPS_B_04,     mapper_VA63B },   /* CPSB test has been patched out (60=0008) register is also written to, possibly leftover from development */
 	{"varthj",      CPS_B_21_BT5, mapper_VA22B },   /* CPSB test has been patched out (72=0001) register is also written to, possibly leftover from development */
@@ -1936,12 +1948,26 @@ void cps_state::cps1_get_video_base()
 	}
 
 	/* Some of the sf2 hacks use only sprite port 0x9100 and the scroll layers are offset */
-	if (m_game_config->bootleg_kludge == 1)
+	if (m_game_config->bootleg_kludge == 0x01)
 	{
 		m_cps_a_regs[CPS1_OBJ_BASE] = 0x9100;
 		scroll1xoff = -0x0c;
 		scroll2xoff = -0x0e;
 		scroll3xoff = -0x10;
+	}
+	else
+	if (m_game_config->bootleg_kludge == 0x0E)
+	{
+		scroll1xoff = 0xffba;
+		scroll2xoff = 0xffc0;
+		scroll3xoff = 0xffba;
+	}
+	else
+	if (m_game_config->bootleg_kludge == 0x0F)
+	{
+		scroll1xoff = 0xffc0;
+		scroll2xoff = 0xffc0;
+		scroll3xoff = 0xffc0;
 	}
 	else
 	if (m_game_config->bootleg_kludge == 2)

@@ -9,8 +9,10 @@
 #include "cpu/m68000/m68000.h"
 #include "cpu/z80/z80.h"
 #include "machine/i8255.h"
+#include "machine/gen_latch.h"
 #include "machine/nvram.h"
 #include "machine/segaic16.h"
+#include "machine/watchdog.h"
 #include "video/segaic16.h"
 #include "video/segaic16_road.h"
 #include "video/sega16sp.h"
@@ -30,9 +32,11 @@ public:
 		m_soundcpu(*this, "soundcpu"),
 		m_i8255(*this, "i8255"),
 		m_nvram(*this, "nvram"),
+		m_watchdog(*this, "watchdog"),
 		m_sprites(*this, "sprites"),
 		m_segaic16vid(*this, "segaic16vid"),
 		m_segaic16road(*this, "segaic16road"),
+		m_soundlatch(*this, "soundlatch"),
 		m_bankmotor_timer(*this, "bankmotor"),
 		m_digital_ports(*this, digital_ports),
 		m_adc_ports(*this, "ADC"),
@@ -119,9 +123,11 @@ protected:
 	required_device<z80_device> m_soundcpu;
 	required_device<i8255_device> m_i8255;
 	optional_device<nvram_device> m_nvram;
+	required_device<watchdog_timer_device> m_watchdog;
 	required_device<sega_16bit_sprite_device> m_sprites;
 	required_device<segaic16_video_device> m_segaic16vid;
 	required_device<segaic16_road_device> m_segaic16road;
+	required_device<generic_latch_8_device> m_soundlatch;
 	optional_device<timer_device> m_bankmotor_timer;
 
 	// input ports

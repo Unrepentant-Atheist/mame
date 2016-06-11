@@ -37,7 +37,7 @@ Registers per channel:
 
 #include "emu.h"
 #include "gaelco.h"
-#include "sound/wavwrite.h"
+#include "wavwrite.h"
 
 #define VERBOSE_SOUND 0
 #define VERBOSE_READ_WRITES 0
@@ -185,6 +185,9 @@ void gaelco_gae1_device::sound_stream_update(sound_stream &stream, stream_sample
 READ16_MEMBER( gaelco_gae1_device::gaelcosnd_r )
 {
 	LOG_READ_WRITES(("%s: (GAE1): read from %04x\n", machine().describe_context(), offset));
+
+	/* first update the stream to this point in time */
+	m_stream->update();
 
 	return m_sndregs[offset];
 }

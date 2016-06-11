@@ -147,13 +147,14 @@ const options_entry osd_options::s_option_entries[] =
 	{ OSDOPTION_BGFX_DEBUG,                   "0",               OPTION_BOOLEAN, "enable BGFX debugging statistics" },
 	{ OSDOPTION_BGFX_SCREEN_CHAINS,           "default",         OPTION_STRING, "comma-delimited list of screen chain JSON names, colon-delimited per-window" },
 	{ OSDOPTION_BGFX_SHADOW_MASK,             "slot-mask.png",   OPTION_STRING, "shadow mask texture name" },
+	{ OSDOPTION_BGFX_AVI_NAME,                "bgfx.avi",        OPTION_STRING, "filename for BGFX output logging" },
 
 		// End of list
 	{ nullptr }
 };
 
 osd_options::osd_options()
-: cli_options()
+: emu_options()
 {
 	add_entries(osd_options::s_option_entries);
 }
@@ -216,7 +217,7 @@ void osd_common_t::register_options()
 #ifndef OSD_MINI
 	REGISTER_MODULE(m_mod_man, DEBUG_WINDOWS);
 	REGISTER_MODULE(m_mod_man, DEBUG_QT);
-	REGISTER_MODULE(m_mod_man, DEBUG_INTERNAL);
+	REGISTER_MODULE(m_mod_man, DEBUG_IMGUI);
 	REGISTER_MODULE(m_mod_man, DEBUG_NONE);
 #endif
 
@@ -254,6 +255,7 @@ void osd_common_t::register_options()
 	REGISTER_MODULE(m_mod_man, OUTPUT_NONE);
 	REGISTER_MODULE(m_mod_man, OUTPUT_CONSOLE);
 	REGISTER_MODULE(m_mod_man, OUTPUT_NETWORK);
+	REGISTER_MODULE(m_mod_man, OUTPUT_WIN32);
 
 
 	// after initialization we know which modules are supported
@@ -320,9 +322,6 @@ void osd_common_t::register_options()
 
 	// Register video options and update options
 	video_options_add("none", nullptr);
-#if USE_OPENGL
-	video_options_add("opengl", nullptr);
-#endif
 	video_register();
 	update_option(OSDOPTION_VIDEO, m_video_names);
 }
@@ -421,8 +420,8 @@ void osd_common_t::init(running_machine &machine)
 
 	// ensure we get called on the way out
 	machine.add_notifier(MACHINE_NOTIFY_EXIT, machine_notify_delegate(FUNC(osd_common_t::osd_exit), this));
-	
-	
+
+
 	/* now setup watchdog */
 	int watchdog_timeout = options.watchdog();
 
@@ -448,7 +447,7 @@ void osd_common_t::update(bool skip_redraw)
 	// irregular intervals in some circumstances (e.g., multi-screen games
 	// or games with asynchronous updates).
 	//
-	if (m_watchdog != NULL)
+	if (m_watchdog != nullptr)
 		m_watchdog->reset();
 
 	update_slider_list();
@@ -553,10 +552,22 @@ void osd_common_t::customize_input_type_list(simple_list<input_type_entry> &type
 //  list of OS-dependent slider values.
 //-------------------------------------------------
 
-std::vector<ui_menu_item> osd_common_t::get_slider_list()
+std::vector<ui::menu_item> osd_common_t::get_slider_list()
 {
 	return m_sliders;
 }
+
+
+//-------------------------------------------------
+//  add_audio_to_recording - append audio samples
+//  to an AVI recording if one is active
+//-------------------------------------------------
+
+void osd_common_t::add_audio_to_recording(const INT16 *buffer, int samples_this_frame)
+{
+	// Do nothing
+}
+
 
 //-------------------------------------------------
 //  execute_command - execute a command not yet
@@ -630,7 +641,8 @@ void osd_common_t::init_subsystems()
 	m_midi = select_module_options<midi_module *>(options(), OSD_MIDI_PROVIDER);
 
 	m_output = select_module_options<output_module *>(options(), OSD_OUTPUT_PROVIDER);
-	machine().output().set_notifier(NULL, output_notifier_callback, this);
+	m_output->set_machine(&machine());
+	machine().output().set_notifier(nullptr, output_notifier_callback, this);
 
 	m_mod_man.init(options());
 
@@ -700,10 +712,14 @@ void osd_common_t::window_exit()
 
 void osd_common_t::input_exit()
 {
-	m_keyboard_input->exit();
-	m_mouse_input->exit();
-	m_lightgun_input->exit();
-	m_joystick_input->exit();
+	if (m_keyboard_input)
+		m_keyboard_input->exit();
+	if (m_mouse_input)
+		m_mouse_input->exit();
+	if (m_lightgun_input)
+		m_lightgun_input->exit();
+	if (m_joystick_input)
+		m_joystick_input->exit();
 }
 
 void osd_common_t::osd_exit()

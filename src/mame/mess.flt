@@ -19,11 +19,13 @@ advision.cpp
 aim65.cpp
 aim65_40.cpp
 alesis.cpp
+alesis_qs.cpp
 alphasma.cpp
 alphatro.cpp
 altair.cpp
 alto2.cpp
 altos5.cpp
+altos486.cpp
 amico2k.cpp
 amiga.cpp
 ampro.cpp
@@ -179,6 +181,7 @@ fanucs15.cpp
 fanucspmg.cpp
 fb01.cpp
 fc100.cpp
+fccpu30.cpp
 fidel6502.cpp
 fidel68k.cpp
 fidelz80.cpp
@@ -241,6 +244,7 @@ hunter2.cpp
 hx20.cpp
 hyperscan.cpp
 i7000.cpp
+ibm3153.cpp
 ibm6580.cpp
 ibmpc.cpp
 ibmpcjr.cpp
@@ -262,6 +266,8 @@ iq151.cpp
 iris3130.cpp
 irisha.cpp
 isbc.cpp
+isbc8010.cpp
+isbc8030.cpp
 iskr103x.cpp
 itt3030.cpp
 jade.cpp
@@ -352,6 +358,7 @@ mt735.cpp
 mtx.cpp
 multi16.cpp
 multi8.cpp
+mvme350.cpp
 mx2178.cpp
 myb3k.cpp
 mycom.cpp
@@ -368,10 +375,10 @@ nakajies.cpp
 nanos.cpp
 nascom1.cpp
 nc.cpp
+neogeocd.cpp
 nes.cpp
 newbrain.cpp
 next.cpp
-ng_aes.cpp
 ngen.cpp
 ngp.cpp
 nokia_3310.cpp
@@ -541,6 +548,7 @@ studio2.cpp
 sun1.cpp
 sun2.cpp
 sun3.cpp
+sun3x.cpp
 sun4.cpp
 super6.cpp
 super80.cpp
@@ -636,6 +644,7 @@ vixen.cpp
 vk100.cpp
 votrpss.cpp
 votrtnt.cpp
+vsmilepro.cpp
 vt100.cpp
 vt220.cpp
 vt240.cpp
@@ -689,5 +698,7 @@ zx.cpp
 +jaguarcd
 //konamim2.cpp
 +3do_m2
+//neogeo.cpp
++aes
 //vectrex.cpp
 -raaspec

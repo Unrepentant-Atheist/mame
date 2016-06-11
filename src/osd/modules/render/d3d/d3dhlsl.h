@@ -11,6 +11,8 @@
 
 #include <vector>
 #include "aviio.h"
+#include "../frontend/mame/ui/menuitem.h"
+#include "../frontend/mame/ui/slider.h"
 
 //============================================================
 //  CONSTANTS
@@ -20,8 +22,6 @@
 //============================================================
 //  TYPE DEFINITIONS
 //============================================================
-
-struct slider_state;
 
 class effect;
 class shaders;
@@ -81,7 +81,9 @@ public:
 		CU_PHOSPHOR_IGNORE,
 
 		CU_POST_VIGNETTING,
-		CU_POST_CURVATURE,
+		CU_POST_DISTORTION,
+		CU_POST_CUBIC_DISTORTION,
+		CU_POST_DISTORT_CORNER,
 		CU_POST_ROUND_CORNER,
 		CU_POST_SMOOTH_BORDER,
 		CU_POST_REFLECTION,
@@ -197,7 +199,9 @@ struct hlsl_options
 	float                   shadow_mask_v_size;
 	float                   shadow_mask_u_offset;
 	float                   shadow_mask_v_offset;
-	float                   curvature;
+	float                   distortion;
+	float                   cubic_distortion;
+	float                   distort_corner;
 	float                   round_corner;
 	float                   smooth_border;
 	float                   reflection;
@@ -241,6 +245,7 @@ struct hlsl_options
 	int                     yiq_phase_count;
 
 	// Vectors
+	float                   vector_beam_smooth;
 	float                   vector_length_scale;
 	float                   vector_length_ratio;
 
@@ -287,7 +292,7 @@ private:
 	bool *          m_dirty;
 };
 
-class shaders
+class shaders : public slider_changed_notifier
 {
 	friend class effect;
 	friend class uniform;
@@ -300,7 +305,7 @@ public:
 	void init(d3d_base *d3dintf, running_machine *machine, renderer_d3d9 *renderer);
 
 	bool enabled() { return master_enable; }
-	void toggle(std::vector<ui_menu_item>& sliders);
+	void toggle(std::vector<ui::menu_item>& sliders);
 
 	bool vector_enabled() { return master_enable && vector_enable; }
 	d3d_render_target* get_vector_target(render_primitive *prim);
@@ -317,12 +322,12 @@ public:
 
 	bool register_texture(render_primitive *prim, texture_info *texture);
 	d3d_render_target* get_texture_target(render_primitive *prim, texture_info *texture);
-	bool add_render_target(renderer_d3d9* d3d, texture_info* texture, int source_width, int source_height, int target_width, int target_height);
+	bool add_render_target(renderer_d3d9* d3d, render_primitive *prim, texture_info* texture, int source_width, int source_height, int target_width, int target_height);
 	bool add_cache_target(renderer_d3d9* d3d, texture_info* texture, int source_width, int source_height, int target_width, int target_height, int screen_index);
 
 	void window_save();
 	void window_record();
-	bool recording() { return avi_output_file != nullptr; }
+	bool recording() const { return avi_output_file != nullptr; }
 
 	void avi_update_snap(surface *surface);
 	void render_snapshot(surface *surface);
@@ -335,11 +340,13 @@ public:
 	void                    remove_render_target(int source_width, int source_height, UINT32 screen_index, UINT32 page_index);
 	void                    remove_render_target(d3d_render_target *rt);
 
-	int create_resources(bool reset, std::vector<ui_menu_item>& sliders);
+	int create_resources(bool reset, std::vector<ui::menu_item>& sliders);
 	void delete_resources(bool reset);
 
 	// slider-related functions
-	std::vector<ui_menu_item> init_slider_list();
+	virtual INT32 slider_changed(running_machine &machine, void *arg, int /*id*/, std::string *str, INT32 newval) override;
+	slider_state* slider_alloc(running_machine &machine, int id, const char *title, INT32 minval, INT32 defval, INT32 maxval, INT32 incval, void *arg);
+	std::vector<ui::menu_item> init_slider_list();
 	void *get_slider_option(int id, int index = 0);
 
 private:
@@ -439,6 +446,7 @@ private:
 
 	static slider_desc      s_sliders[];
 	static hlsl_options     last_options;               // last used options
+	static char             last_system_name[16];       // last used system
 };
 
 #endif

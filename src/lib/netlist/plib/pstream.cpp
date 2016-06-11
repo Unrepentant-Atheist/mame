@@ -13,6 +13,8 @@
 #include "pstream.h"
 #include "palloc.h"
 
+namespace plib {
+
 // -----------------------------------------------------------------------------
 // pistream: input stream
 // -----------------------------------------------------------------------------
@@ -70,7 +72,7 @@ pifilestream::pifilestream(void *file, const bool do_close)
 void pifilestream::init(void *file)
 {
 	m_file = file;
-	if (m_file == NULL)
+	if (m_file == nullptr)
 	{
 		set_flag(FLAG_ERROR);
 		set_flag(FLAG_EOF);
@@ -170,7 +172,7 @@ pofilestream::pofilestream(void *file, const bool do_close)
 void pofilestream::init(void *file)
 {
 	m_file = file;
-	if (m_file == NULL)
+	if (m_file == nullptr)
 	{
 		set_flag(FLAG_ERROR);
 		set_flag(FLAG_CLOSED);
@@ -306,7 +308,7 @@ pimemstream::pos_type pimemstream::vtell()
 pomemstream::pomemstream()
 : postream(FLAG_SEEKABLE), m_pos(0), m_capacity(1024), m_size(0)
 {
-	m_mem = palloc_array(char, m_capacity);
+	m_mem = palloc_array<char>(m_capacity);
 }
 
 pomemstream::~pomemstream()
@@ -321,8 +323,8 @@ void pomemstream::vwrite(const void *buf, const unsigned n)
 		while (m_pos + n >= m_capacity)
 			m_capacity *= 2;
 		char *o = m_mem;
-		m_mem = palloc_array(char, m_capacity);
-		if (m_mem == NULL)
+		m_mem = palloc_array<char>(m_capacity);
+		if (m_mem == nullptr)
 		{
 			set_flag(FLAG_ERROR);
 			return;
@@ -345,8 +347,8 @@ void pomemstream::vseek(const pos_type n)
 		while (m_size >= m_capacity)
 			m_capacity *= 2;
 		char *o = m_mem;
-		m_mem = palloc_array(char, m_capacity);
-		if (m_mem == NULL)
+		m_mem = palloc_array<char>(m_capacity);
+		if (m_mem == nullptr)
 		{
 			set_flag(FLAG_ERROR);
 			return;
@@ -359,4 +361,6 @@ void pomemstream::vseek(const pos_type n)
 pstream::pos_type pomemstream::vtell()
 {
 	return m_pos;
+}
+
 }

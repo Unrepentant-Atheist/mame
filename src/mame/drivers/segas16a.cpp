@@ -315,7 +315,7 @@ READ8_MEMBER( segas16a_state::sound_data_r )
 {
 	// assert ACK
 	m_i8255->pc6_w(CLEAR_LINE);
-	return soundlatch_read();
+	return m_soundlatch->read(space, 0);
 }
 
 
@@ -533,7 +533,7 @@ READ8_MEMBER( segas16a_state::mcu_io_r )
 		case 0:
 			// access watchdog? (unsure about this one)
 			if (                         offset < 0x3fff)
-				return watchdog_reset_r(space, 0);
+				return m_watchdog->reset_r(space, 0);
 
 			// access main work RAM
 			else if (offset >= 0x4000 && offset < 0x8000)
@@ -957,7 +957,7 @@ static ADDRESS_MAP_START( system16a_map, AS_PROGRAM, 16, segas16a_state )
 	AM_RANGE(0x440000, 0x4407ff) AM_MIRROR(0x3bf800) AM_RAM AM_SHARE("sprites")
 	AM_RANGE(0x840000, 0x840fff) AM_MIRROR(0x3bf000) AM_RAM_WRITE(paletteram_w) AM_SHARE("paletteram")
 	AM_RANGE(0xc40000, 0xc43fff) AM_MIRROR(0x39c000) AM_READWRITE(misc_io_r, misc_io_w)
-	AM_RANGE(0xc60000, 0xc6ffff) AM_READ(watchdog_reset16_r)
+	AM_RANGE(0xc60000, 0xc6ffff) AM_DEVREAD("watchdog", watchdog_timer_device, reset16_r)
 	AM_RANGE(0xc70000, 0xc73fff) AM_MIRROR(0x38c000) AM_RAM AM_SHARE("nvram")
 ADDRESS_MAP_END
 
@@ -1908,8 +1908,10 @@ static MACHINE_CONFIG_START( system16a, segas16a_state )
 
 	MCFG_NVRAM_ADD_0FILL("nvram")
 
+	MCFG_WATCHDOG_ADD("watchdog")
+
 	MCFG_DEVICE_ADD("i8255", I8255, 0)
-	MCFG_I8255_OUT_PORTA_CB(WRITE8(driver_device, soundlatch_byte_w))
+	MCFG_I8255_OUT_PORTA_CB(DEVWRITE8("soundlatch", generic_latch_8_device, write))
 	MCFG_I8255_OUT_PORTB_CB(WRITE8(segas16a_state, misc_control_w))
 	MCFG_I8255_OUT_PORTC_CB(WRITE8(segas16a_state, tilemap_sound_w))
 
@@ -1930,6 +1932,8 @@ static MACHINE_CONFIG_START( system16a, segas16a_state )
 
 	// sound hardware
 	MCFG_SPEAKER_STANDARD_MONO("mono")
+
+	MCFG_GENERIC_LATCH_8_ADD("soundlatch")
 
 	MCFG_YM2151_ADD("ymsnd", 4000000)
 	MCFG_YM2151_PORT_WRITE_HANDLER(WRITE8(segas16a_state, n7751_control_w))
